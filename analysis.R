@@ -2,13 +2,6 @@
 
 # Setup
 setwd("~/Documents")
-
-# Grab pacakges we'll need. Not sure why we still need these.
-BiocManager::install('Maaslin2')
-remotes::install_github('microbiomeDB/microbiomeComputations', 'v5.1.3', upgrade_dependencies=F) # 5.1.2 worked btw
-remotes::install_github('microbiomeDB/MicrobiomeDB')
-remotes::install_github('microbiomeDB/microbiomeData')
-
 library(MicrobiomeDB, quietly = TRUE)
 library(igraph, quietly = TRUE)
 
