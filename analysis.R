@@ -51,6 +51,7 @@ graph_list <- lapply(habitats, function(x) {
   vertex.color="white",
   vertex.label.dist=1,
   vertex.label.color="black",
+  vertex.label.degree=0,
   vertex.size=2,
   main=x
   )
