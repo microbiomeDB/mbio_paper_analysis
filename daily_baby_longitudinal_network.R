@@ -38,7 +38,7 @@ graph_list <- lapply(ages, function(x) {
   # Extract results. We want to do this ourselves to have more control over
   # how we create the igraph object.
   corr_stats <- data.table::setDT(age_correlation@statistics@statistics)
-  filtered_corr_stats <- corr_stats[corr_stats$correlationCoef >= 0.3 & corr_stats$pValue <= 0.05, ]
+  filtered_corr_stats <- corr_stats[abs(corr_stats$correlationCoef) >= 0.3 & corr_stats$pValue <= 0.05, ]
   age_graph <- igraph::graph_from_data_frame(filtered_corr_stats, directed=FALSE)
 
   igraph::plot.igraph(
