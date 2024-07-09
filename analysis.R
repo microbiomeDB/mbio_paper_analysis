@@ -2,13 +2,6 @@
 
 # Setup
 setwd("~/Documents")
-
-# Grab pacakges we'll need. Not sure why we still need these.
-BiocManager::install('Maaslin2')
-remotes::install_github('microbiomeDB/microbiomeComputations', 'v5.1.3', upgrade_dependencies=F) # 5.1.2 worked btw
-remotes::install_github('microbiomeDB/MicrobiomeDB')
-remotes::install_github('microbiomeDB/microbiomeData')
-
 library(MicrobiomeDB, quietly = TRUE)
 library(igraph, quietly = TRUE)
 
@@ -42,7 +35,7 @@ graph_list <- lapply(habitats, function(x) {
   
   habitat_correlation <- selfCorrelation(habitat_collection, method = 'pearson')
   corr_stats <- data.table::setDT(habitat_correlation@statistics@statistics)
-  filtered_corr_stats <- corr_stats[corr_stats$correlationCoef >= 0.3 & corr_stats$pValue <= 0.05, ]
+  filtered_corr_stats <- corr_stats[abs(corr_stats$correlationCoef) >= 0.3 & corr_stats$pValue <= 0.05, ]
   habitat_graph <- igraph::graph_from_data_frame(filtered_corr_stats, directed=FALSE)
 
   igraph::plot.igraph(
