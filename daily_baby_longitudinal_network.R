@@ -15,7 +15,8 @@ recordIColName <- DB_genus@recordIdColumn # Use me to match data
 
 # Subset by age
 
-ages = 1:10
+# ages <- sort(unique(sampleMetadata$age_days))
+ages <- c(1:10)
 
 graph_list <- lapply(ages, function(x) {
   
@@ -48,7 +49,7 @@ graph_list <- lapply(ages, function(x) {
 })
 
 ## Now can do network stats on the graph list
-# NOTE the graph is currenty unweighted so this is just avg degree
+# NOTE the graph is currenty unweighted so mean(strength) is just avg degree
 avg_strength <- unlist(lapply(graph_list, function(g) {
   mean(strength(g))
   # transitivity(g)
