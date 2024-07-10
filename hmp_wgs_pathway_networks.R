@@ -14,6 +14,7 @@
 
 
 library(ggplot2)
+library(reshape2)
 
 # Grab collections
 HMP_MGX_species <- getCollection(microbiomeData::HMP_MGX, "Shotgun metagenomics Species (Relative taxonomic abundance analysis)")
@@ -34,9 +35,11 @@ corr_stats_filtered <- corr_stats[abs(corr_stats$correlationCoef) >= 0.80 & corr
 # I'll use for loops for clarity.
 # Initialize empty data.frame
 network_df <- data.frame(
-  from = character(),
-  to = character(),
-  stringsAsFactors = FALSE
+  taxonA = character(),
+  taxonB = character(),
+  sharedPathway = character(),
+  stringsAsFactors = FALSE,
+  
 )
 pathways <- as.character(unique(corr_stats_filtered$data2))
 for (pathway in pathways) {
@@ -48,7 +51,7 @@ for (pathway in pathways) {
       taxon <- taxa_correlated_with_pathway[i]
       for (j in (i+1):length(taxa_correlated_with_pathway)) {
         # Add edge from taxon to taxa_correlated_with_pathway[j]
-        network_df <- rbind(network_df, data.frame(from = taxon, to = taxa_correlated_with_pathway[j], stringsAsFactors = FALSE))
+        network_df <- rbind(network_df, data.frame(taxonA = taxon, taxonB = taxa_correlated_with_pathway[j], sharedPathway=pathway, stringsAsFactors = FALSE))
       }
     }
   }
@@ -91,3 +94,17 @@ igraph::plot.igraph(
   vertex.size=2,
   main="Pathway network"
 )
+
+
+## Want to know which pathways are connecting nodes?
+corr_incidence <- reshape(corr_stats_filtered[, c("data1", "data2", "correlationCoef")], direction="wide", idvar="data1", timevar="data2")
+# Quick n dirty heatmap
+data <- melt(corr_incidence)
+ggplot(data, aes(x = data1, y = variable, fill = value)) +
+  geom_tile() +
+  labs(title = "Correlation Heatmap. Abs(corr) >=0.8, pvalue <=0.01",
+       x = "Taxon",
+       y = "Pathway") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggsave(file="bench_query_sort.pdf", width=4, height=4, dpi=300)
