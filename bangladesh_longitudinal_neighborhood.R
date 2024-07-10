@@ -55,7 +55,7 @@ graph_list <- lapply(ages, function(x) {
     cool_taxon_neighborhood <- make_ego_graph(age_graph, order=1, nodes=which(V(age_graph)$name == cool_taxon))
     
     # Plot! But only if there are any vertices
-    if (length(V(cool_taxon_neighborhood[[1]])) > 0) {
+    if (length(cool_taxon_neighborhood)>0 && length(V(cool_taxon_neighborhood[[1]])) > 0) {
       igraph::plot.igraph(
         cool_taxon_neighborhood[[1]],
         arrow.mode=0,
