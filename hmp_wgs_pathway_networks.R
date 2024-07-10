@@ -15,6 +15,7 @@
 
 library(ggplot2)
 library(reshape2)
+library(viridis)
 
 # Grab collections
 HMP_MGX_species <- getCollection(microbiomeData::HMP_MGX, "Shotgun metagenomics Species (Relative taxonomic abundance analysis)")
@@ -38,9 +39,9 @@ network_df <- data.frame(
   taxonA = character(),
   taxonB = character(),
   sharedPathway = character(),
-  stringsAsFactors = FALSE,
-  
+  stringsAsFactors = FALSE
 )
+
 pathways <- as.character(unique(corr_stats_filtered$data2))
 for (pathway in pathways) {
   taxa_correlated_with_pathway <- corr_stats_filtered$data1[which(corr_stats_filtered$data2 == pathway)]
@@ -79,13 +80,14 @@ network <- igraph::graph_from_data_frame(network_df, directed=FALSE)
 # means they are "correlated" with the same k pathways. 
 # We are not using that information at this time, so we'll simplify the graph
 # by removing duplicate edges.
-simplified_network <- simplify(
-  network,
-  remove.multiple = TRUE
-)
+# simplified_network <- simplify(
+#   network,
+#   remove.multiple = TRUE
+# )
+E(network)$color <- as.factor(network_df$sharedPathway)
 
 igraph::plot.igraph(
-  network,
+  g,
   arrow.mode=0,
   vertex.color="white",
   vertex.label.dist=1,
@@ -107,4 +109,30 @@ ggplot(data, aes(x = data1, y = variable, fill = value)) +
        y = "Pathway") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-ggsave(file="bench_query_sort.pdf", width=4, height=4, dpi=300)
+
+## Let's draw some nicer graphs
+component_membership <- components(network)$membership
+components_node_list <- lapply(seq(1:max(component_membership)), function(i) {
+  return(V(network)$name[which(component_membership==i)])
+})
+connected_components_graphs <- lapply(seq(1:max(component_membership)), function(i) {
+  g <- induced_subgraph(network, components_node_list[[i]], "create_from_scratch")
+})
+
+
+# Plot graph and legend
+for(i in seq(1:max(component_membership))) {
+  component_i <- connected_components_graphs[[i]]
+  # Find the unique pathways
+  component_i_pathways <- unique(E(component_i)$color)
+  # Create a legend data.frame that maps the pathway to a color
+  legend_data <- data.frame(
+    pathway = component_i_pathways,
+    color = viridis(length(component_i_pathways))
+  )
+  # Remap the edge colors to the legend colors
+  E(component_i)$color <- legend_data$color[match(E(component_i)$color, legend_data$pathway)]
+  plot(component_i, vertex.color="white", vertex.label.dist=1, vertex.label.color="black", vertex.label.degree=0, vertex.size=2, main=paste("Component", i))
+  legend("bottom", legend=legend_data$pathway, fill=legend_data$color)
+}
+
