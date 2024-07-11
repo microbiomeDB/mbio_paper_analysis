@@ -35,7 +35,7 @@ graph_list <- lapply(habitats, function(x) {
   
   habitat_correlation <- selfCorrelation(habitat_collection, method = 'pearson')
   corr_stats <- data.table::setDT(habitat_correlation@statistics@statistics)
-  filtered_corr_stats <- corr_stats[abs(corr_stats$correlationCoef) >= 0.3 & corr_stats$pValue <= 0.05, ]
+  filtered_corr_stats <- corr_stats[corr_stats$correlationCoef >= 0.3 & corr_stats$pValue <= 0.05, ]
   habitat_graph <- igraph::graph_from_data_frame(filtered_corr_stats, directed=FALSE)
 
   igraph::plot.igraph(
@@ -45,7 +45,7 @@ graph_list <- lapply(habitats, function(x) {
   vertex.label.dist=1,
   vertex.label.color="black",
   vertex.label.degree=0,
-  vertex.size=2,
+  vertex.size=degree(habitat_graph)*4,
   main=x
   )
   return(habitat_graph)
