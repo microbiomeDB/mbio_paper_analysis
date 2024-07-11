@@ -16,6 +16,7 @@
 library(ggplot2)
 library(reshape2)
 library(viridis)
+library(RColorBrewer)
 
 # Grab collections
 HMP_MGX_species <- getCollection(microbiomeData::HMP_MGX, "Shotgun metagenomics Species (Relative taxonomic abundance analysis)")
@@ -29,7 +30,7 @@ pathway_vs_species <- correlation(HMP_MGX_species, HMP_MGX_pathways, method = 's
 # thing - either a taxon is correlated with a pathway or it isn't. To make this
 # more clear, when i mean correlated and passing filters, i'll write "correlated".
 corr_stats <- data.table::setDT(pathway_vs_species@statistics@statistics)
-corr_stats_filtered <- corr_stats[abs(corr_stats$correlationCoef) >= 0.80 & corr_stats$pValue <= 0.01, ]
+corr_stats_filtered <- corr_stats[corr_stats$correlationCoef >= 0.80 & corr_stats$pValue <= 0.01, ]
 
 
 # Now what we need to do is turn this list of "correlations" into a network
@@ -87,7 +88,7 @@ network <- igraph::graph_from_data_frame(network_df, directed=FALSE)
 E(network)$color <- as.factor(network_df$sharedPathway)
 
 igraph::plot.igraph(
-  g,
+  network,
   arrow.mode=0,
   vertex.color="white",
   vertex.label.dist=1,
@@ -125,14 +126,21 @@ for(i in seq(1:max(component_membership))) {
   component_i <- connected_components_graphs[[i]]
   # Find the unique pathways
   component_i_pathways <- unique(E(component_i)$color)
+  
   # Create a legend data.frame that maps the pathway to a color
-  legend_data <- data.frame(
-    pathway = component_i_pathways,
-    color = viridis(length(component_i_pathways))
-  )
+  if (length(as.character(component_i_pathways)) > 7) {
+    legend_data <- data.frame(
+      pathway = component_i_pathways,
+      color = viridis(length(component_i_pathways))
+    )
+  } else {
+    legend_data <- data.frame(
+      pathway = component_i_pathways,
+      color = brewer.pal(length(component_i_pathways), "Set3")
+    )
+  }
   # Remap the edge colors to the legend colors
   E(component_i)$color <- legend_data$color[match(E(component_i)$color, legend_data$pathway)]
-  plot(component_i, vertex.color="white", vertex.label.dist=1, vertex.label.color="black", vertex.label.degree=0, vertex.size=2, main=paste("Component", i))
+  plot(component_i, vertex.color="white", vertex.label.dist=1, vertex.label.color="black", vertex.label.degree=0, vertex.size=4, main=paste("Component", i), edge.width=2)
   legend("bottom", legend=legend_data$pathway, fill=legend_data$color)
 }
-
