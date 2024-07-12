@@ -25,6 +25,8 @@ RUN R -e "install.packages('readr')"
 RUN R -e "install.packages('BiocManager')"
 RUN R -e "BiocManager::install('SummarizedExperiment')"
 RUN R -e "BiocManager::install('DESeq2')"
+RUN R -e "BiocManager::install('curatedMetagenomicData')"
+RUN R -e "BiocManager::install('biomformat')"
 
 ## Profiling and development help packages
 RUN R -e "print('installing devtools2')"
@@ -41,6 +43,8 @@ RUN R -e "BiocManager::install('Maaslin2')"
 RUN R -e "remotes::install_github('microbiomeDB/microbiomeComputations', 'v5.1.3', upgrade_dependencies=F)"
 RUN R -e "remotes::install_github('microbiomeDB/MicrobiomeDB')"
 RUN R -e "remotes::install_github('microbiomeDB/microbiomeData')"
+
+
 
 COPY . /home/rstudio/Documents
 
