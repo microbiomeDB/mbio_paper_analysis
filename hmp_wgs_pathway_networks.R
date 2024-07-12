@@ -17,6 +17,7 @@ library(ggplot2)
 library(reshape2)
 library(viridis)
 library(RColorBrewer)
+library(stringr)
 
 # Grab collections
 HMP_MGX_species <- getCollection(microbiomeData::HMP_MGX, "Shotgun metagenomics Species (Relative taxonomic abundance analysis)")
@@ -99,16 +100,6 @@ igraph::plot.igraph(
 )
 
 
-## Want to know which pathways are connecting nodes?
-corr_incidence <- reshape(corr_stats_filtered[, c("data1", "data2", "correlationCoef")], direction="wide", idvar="data1", timevar="data2")
-# Quick n dirty heatmap
-data <- melt(corr_incidence)
-ggplot(data, aes(x = data1, y = variable, fill = value)) +
-  geom_tile() +
-  labs(title = "Correlation Heatmap. Abs(corr) >=0.8, pvalue <=0.01",
-       x = "Taxon",
-       y = "Pathway") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 
 ## Let's draw some nicer graphs
@@ -144,3 +135,18 @@ for(i in seq(1:max(component_membership))) {
   plot(component_i, vertex.color="white", vertex.label.dist=1, vertex.label.color="black", vertex.label.degree=0, vertex.size=4, main=paste("Component", i), edge.width=2)
   legend("bottom", legend=legend_data$pathway, fill=legend_data$color)
 }
+
+
+## Want to know which pathways are connecting nodes?
+corr_incidence <- reshape(corr_stats_filtered[, c("data1", "data2", "correlationCoef")], direction="wide", idvar="data1", timevar="data2")
+# Quick n dirty heatmap
+data <- melt(corr_incidence)
+data$variable <- str_replace(data$variable, "correlationCoef.", "")
+ggplot(data, aes(x = data1, y = variable, fill = value)) +
+  geom_tile() +
+  labs(title = "Correlation Heatmap. Abs(corr) >=0.8, pvalue <=0.01",
+       x = "Taxon",
+       y = "Pathway") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  scico::scale_fill_scico(palette = "davos", na.value="white", direction=-1) # the default
