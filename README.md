@@ -1,7 +1,4 @@
 # Analyses for microbiome paper (WIP)
 
-To Dos (ordered)
-- [ ] Get docker image rstudio working
-- [ ] Get mbio ecosystem running
-- [ ] Make networks
-- [ ] do analysis...
+This repository contains code used for the analyses in an upcoming paper about the MicrobiomeDB.
+
