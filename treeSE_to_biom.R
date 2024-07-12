@@ -1,14 +1,26 @@
 writeBIOM <- function(treeSE, filename) {
-	#format taxa levels how vdi likes
-	rowData <- SummarizedExperiment::rowData(treeSE)
-	names(rowData) <- NULL 
-
+	
 	# currently assumes there is one assay here that we care about
+	# and that it is the first one
 	# TODO improve that
+	assayData <- treeSE@assays@data[[1]]
+
+	rowData <- as.data.frame(SummarizedExperiment::rowData(treeSE))
+	# vdi doesnt want the names for some reason :/
+	names(rowData) <- NULL 
+	# biom constructor does funny stuff if row or col data exist but are empty
+	if (ncol(rowData) == 0) rowData <- NULL
+	
+	colData <- as.data.frame(SummarizedExperiment::colData(treeSE))
+	if (ncol(colData) == 0) colData <- NULL
+
+	data_base_type <- ifelse(all(assayData %% 1 == 0), 'int', 'float')
+
 	biom <- biomformat::make_biom(
-		treeSE@assays@data[[1]], 
+		assayData, 
 		observation_metadata = rowData,
-		sample_metadata = SummarizedExperiment::colData(treeSE)
+		sample_metadata = colData,
+		matrix_element_type = data_base_type
 	)
 
 	json <- suppressWarnings(jsonlite::toJSON(biom, always_decimal=TRUE, auto_unbox=TRUE, keep_vec_names=TRUE))
