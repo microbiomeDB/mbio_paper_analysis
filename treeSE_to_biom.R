@@ -24,7 +24,7 @@ writeBIOM <- function(treeSE, filename) {
 	)
 
 	json <- suppressWarnings(jsonlite::toJSON(biom, always_decimal=TRUE, auto_unbox=TRUE, keep_vec_names=TRUE))
-	json <- gsub('"metadata":["', '"metadata":{"taxonomy":["', json, fixed=TRUE)
+	json <- gsub('"metadata":[', '"metadata":{"taxonomy":[', json, fixed=TRUE)
 	json <- gsub(']}', ']}}', json, fixed=TRUE)
 	json <- gsub(']]}}', ']]}', json, fixed=TRUE)
 
