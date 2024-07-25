@@ -12,7 +12,7 @@
 # the filtered network that use these pathways.
 # It would also make a nice heatmap
 
-
+setwd("~/Documents")
 library(ggplot2)
 library(reshape2)
 library(viridis)
@@ -20,6 +20,7 @@ library(RColorBrewer)
 library(stringr)
 library(igraph)
 library(MicrobiomeDB, quietly=TRUE)
+library(rlist)
 
 # Grab collections
 HMP_MGX_species <- getCollection(microbiomeData::HMP_MGX, "Shotgun metagenomics Species (Relative taxonomic abundance analysis)")
@@ -150,14 +151,16 @@ rownames(binarized_matrix) <- corr_incidence$data1
 colnames(binarized_matrix) <- str_replace(colnames(binarized_matrix), "correlationCoef.", "")
 # Reorder rows based on components
 taxa_order <- unlist(components_node_list)
+taxa_order <- rlist::list.reverse(taxa_order)
 binarized_matrix <- binarized_matrix[taxa_order,,drop=FALSE]
 # Reorder columns based on components
 pathway_order <- unlist(lapply(connected_components_graphs, function(g) {
   g_df <- igraph::as_data_frame(g)
   return(unique(g_df$sharedPathway))
 }))
+pathway_order <- rlist::list.reverse(pathway_order)
 binarized_matrix <- binarized_matrix[,pathway_order]
 
 # A nicer looking heatmap
-heatmap(binarized_matrix, scale = "none", col = c("white", "navy"), Rowv = NA, Colv = NA) 
+heatmap(binarized_matrix, scale = "none", col = c("white", "#6f7075"), Rowv = NA, Colv = NA, cexRow = 0.6) 
 
