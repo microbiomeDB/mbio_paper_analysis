@@ -30,25 +30,14 @@ ancestorIdColNames <- species_collection@ancestorIdColumns # Remove me from calc
 recordIColName <- species_collection@recordIdColumn # Use me to match data
 
 diagnosis_day <- sort(unique(sampleMetadata$days_of_period_nec_diagnosed_days))
-diagnosis_day <- c("pre", "almost", "post", "control") # For making ranges
-cool_taxa <- c("Clostridium", "Klebsiella")
+diagnosis_day <- -14:1
 
 
 # Create a list of correlation graphs, one for each age in ages.
 graph_list <- lapply(diagnosis_day, function(day) {
   
   # Subset to the appropriate abundances for this age
-  if (day=="pre") {
-    day_samples <- sampleMetadata$Sample_Id[!is.na(sampleMetadata$days_of_period_nec_diagnosed_days) & sampleMetadata$days_of_period_nec_diagnosed_days < -2]
-  }
-  else if (day=="almost") {
-    day_samples <- sampleMetadata$Sample_Id[!is.na(sampleMetadata$days_of_period_nec_diagnosed_days) & sampleMetadata$days_of_period_nec_diagnosed_days >= -2 & sampleMetadata$days_of_period_nec_diagnosed_days <0]
-  } else if (day=="post") {
-    day_samples <- sampleMetadata$Sample_Id[!is.na(sampleMetadata$days_of_period_nec_diagnosed_days) & sampleMetadata$days_of_period_nec_diagnosed_days >= 0]
-  } else {
-    day_samples <- sampleMetadata$Sample_Id[is.na(sampleMetadata$days_of_period_nec_diagnosed_days)]
-  }
-  
+  day_samples <- sampleMetadata$Sample_Id[!is.na(sampleMetadata$days_of_period_nec_diagnosed_days) & sampleMetadata$days_of_period_nec_diagnosed_days == day]
   if (length(day_samples) < 5) {print(day); return(list())}
   day_species_abundances <- speciesAssayData[which(speciesAssayData$Sample_Id %in% day_samples), ]
   day_pathways_abundances <- pathwayAssayData[which(pathwayAssayData$Sample_Id %in% day_samples), ]
@@ -141,7 +130,7 @@ graph_list <- lapply(diagnosis_day, function(day) {
   
   E(simplified_network)$sharedPathway <- network_df$sharedPathway
   
-  V(simplified_network)$color <- unlist(lapply(V(simplified_network)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
+  V(simplified_network)$color <- unlist(lapply(V(simplified_network)$name, function(v) {ifelse(v %in% c("Clostridium", "Klebsiella"), "blue", "black")}))
   V(simplified_network)$label.color <- V(simplified_network)$color
   
   igraph::plot.igraph(
@@ -150,9 +139,8 @@ graph_list <- lapply(diagnosis_day, function(day) {
     vertex.label.dist=3,
     vertex.label.degree=0,
     vertex.size=2,
-    main=paste("Pathway network,", day),
-    edge.width=E(simplified_network)$weight/10,
-    layout=layout_in_circle(simplified_network)
+    main=paste("Pathway network day", day)
+    # edge.width=E(simplified_network)$weight/10
   )
   return(simplified_network)
 })
@@ -184,93 +172,6 @@ ggplot(gg_data, aes(x=diagnosis_day, y=cluster_results.max_size)) +
 
 ggplot(gg_data, aes(x=diagnosis_day, y=n_pathways)) +
   geom_line()
-
-
-## Let's plot them all on the same layout for better comparison
-# There's a good intersection here. Make into single weighted network to create
-# a combined layout. Then use this layout to plot and highlight nodes in 
-# both networks
-pre_df <- igraph::as_long_data_frame(graph_list[[1]])
-almost_df <- igraph::as_long_data_frame(graph_list[[2]])
-post_df <- igraph::as_long_data_frame(graph_list[[3]])
-control_df <- igraph::as_long_data_frame(graph_list[[4]])
-combined_df <- rbind(pre_df, almost_df, post_df, control_df)
-# Simplify combined_df to have one edge per pair of nodes and add a column for number of times seen
-combined_df$occurrences <- ave(combined_df$from_name, combined_df$from_name, combined_df$to_name, FUN = length)
-# igraph is very particular about how the input df is set up, so let's redo it
-combined_df <- combined_df[, c("from_name", "to_name", "occurrences")]
-
-combined_graph <- igraph::graph_from_data_frame(combined_df, directed=FALSE)
-E(combined_graph)$weight <- combined_df$occurrences
-pre_graph <- graph_list[[1]]
-almost_graph <- graph_list[[2]]
-post_graph <- graph_list[[3]]
-control_graph <- graph_list[[4]]
-coords <- as.data.frame(layout_in_circle(combined_graph))
-coords$node_name <- V(combined_graph)$name
-
-
-# Plot pre-diagnosis
-V(pre_graph)$color <- unlist(lapply(V(pre_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
-V(pre_graph)$label.color <- V(pre_graph)$color
-pre_coords <- as.matrix(coords[match(V(pre_graph)$name, coords$node_name), 1:2])
-igraph::plot.igraph(
-  pre_graph,
-  arrow.mode=0,
-  vertex.label.dist=1,
-  vertex.label.degree=0,
-  vertex.size=10,
-  main="pre-diagnosis",
-  layout=pre_coords,
-  rescale=F,xlim=c(-1,1),ylim=c(-1,1)
-)
-
-V(almost_graph)$color <- unlist(lapply(V(almost_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
-V(almost_graph)$label.color <- V(almost_graph)$color
-almost_coords <- as.matrix(coords[match(V(almost_graph)$name, coords$node_name), 1:2])
-igraph::plot.igraph(
-  almost_graph,
-  arrow.mode=0,
-  vertex.label.dist=1,
-  vertex.label.degree=0,
-  vertex.size=10,
-  main="just-before-diagnosis",
-  layout=almost_coords,
-  rescale=F,xlim=c(-1,1),ylim=c(-1,1)
-)
-
-
-
-V(post_graph)$color <- unlist(lapply(V(post_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
-V(post_graph)$label.color <- V(post_graph)$color
-post_coords <- as.matrix(coords[match(V(post_graph)$name, coords$node_name), 1:2])
-igraph::plot.igraph(
-  post_graph,
-  arrow.mode=0,
-  vertex.label.dist=1,
-  vertex.label.degree=0,
-  vertex.size=10,
-  main='post-diagnosis',
-  layout=post_coords,
-  rescale=F,xlim=c(-1,1),ylim=c(-1,1)
-)
-
-
-V(control_graph)$color <- unlist(lapply(V(control_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
-V(control_graph)$label.color <- V(control_graph)$color
-control_coords <- as.matrix(coords[match(V(control_graph)$name, coords$node_name), 1:2])
-igraph::plot.igraph(
-  control_graph,
-  arrow.mode=0,
-  vertex.label.dist=1,
-  vertex.label.degree=0,
-  vertex.size=10,
-  main='control',
-  layout=control_coords,
-  rescale=F,xlim=c(-1,1),ylim=c(-1,1)
-)
-
-
 
 
 

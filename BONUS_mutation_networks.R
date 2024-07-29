@@ -7,25 +7,25 @@ library(igraph, quietly = TRUE)
 
 # Run microbiomeData::getCuratedDatasetNames() to get all names of studies
 # or getCollectionNames(microbiomeData::HMP_V1V3) to get all collection names
-MALED_genus <- getCollection(
-  microbiomeData::NICU_NEC,
+genus <- getCollection(
+  microbiomeData::BONUS,
   "Shotgun metagenomics Species (Relative taxonomic abundance analysis)",
   continuousMetadataOnly = FALSE
 )
 
-sampleMetadata <- getSampleMetadata(MALED_genus)
-assayData <- microbiomeComputations::getAbundances(MALED_genus)
-ancestorIdColNames <- MALED_genus@ancestorIdColumns # Remove me from calculations
-recordIColName <- MALED_genus@recordIdColumn # Use me to match data
+sampleMetadata <- getSampleMetadata(genus)
+assayData <- microbiomeComputations::getAbundances(genus)
+ancestorIdColNames <- genus@ancestorIdColumns # Remove me from calculations
+recordIColName <- genus@recordIdColumn # Use me to match data
 
-# I want to make subsets based on country
-countries <- unique(sampleMetadata$amnionicity)
-countries <- countries[2:4]
+# I want to make subsets based on mutation status
+status <- unique(sampleMetadata$cftr_mutation_f508del)
+status <- status[2:4]
 
 
-graph_list <- lapply(countries, function(x) {
+graph_list <- lapply(status, function(x) {
   
-  case_samples <- sampleMetadata$Sample_Id[sampleMetadata$amnionicity == x]
+  case_samples <- sampleMetadata$Sample_Id[sampleMetadata$cftr_mutation_f508del == x]
   case_abundances <- assayData[which(assayData$Sample_Id %in% case_samples), ]
   
   case_collection <- microbiomeComputations::AbundanceData(
