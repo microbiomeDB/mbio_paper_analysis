@@ -12,11 +12,15 @@
 # the filtered network that use these pathways.
 # It would also make a nice heatmap
 
-
+setwd("~/Documents")
 library(ggplot2)
 library(reshape2)
 library(viridis)
 library(RColorBrewer)
+library(stringr)
+library(igraph)
+library(MicrobiomeDB, quietly=TRUE)
+library(rlist)
 
 # Grab collections
 HMP_MGX_species <- getCollection(microbiomeData::HMP_MGX, "Shotgun metagenomics Species (Relative taxonomic abundance analysis)")
@@ -99,16 +103,6 @@ igraph::plot.igraph(
 )
 
 
-## Want to know which pathways are connecting nodes?
-corr_incidence <- reshape(corr_stats_filtered[, c("data1", "data2", "correlationCoef")], direction="wide", idvar="data1", timevar="data2")
-# Quick n dirty heatmap
-data <- melt(corr_incidence)
-ggplot(data, aes(x = data1, y = variable, fill = value)) +
-  geom_tile() +
-  labs(title = "Correlation Heatmap. Abs(corr) >=0.8, pvalue <=0.01",
-       x = "Taxon",
-       y = "Pathway") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 
 ## Let's draw some nicer graphs
@@ -144,3 +138,29 @@ for(i in seq(1:max(component_membership))) {
   plot(component_i, vertex.color="white", vertex.label.dist=1, vertex.label.color="black", vertex.label.degree=0, vertex.size=4, main=paste("Component", i), edge.width=2)
   legend("bottom", legend=legend_data$pathway, fill=legend_data$color)
 }
+
+
+## Want to know which pathways are connecting nodes?
+corr_incidence <- reshape(corr_stats_filtered[, c("data1", "data2", "correlationCoef")], direction="wide", idvar="data1", timevar="data2")
+# binarize corr_incidence
+binarized_incidence <- corr_incidence[,-1]
+binarized_incidence[is.na(binarized_incidence)] <- 0
+binarized_incidence[binarized_incidence > 0] <- 1
+binarized_matrix <- data.matrix(binarized_incidence, rownames.force = NA)
+rownames(binarized_matrix) <- corr_incidence$data1
+colnames(binarized_matrix) <- str_replace(colnames(binarized_matrix), "correlationCoef.", "")
+# Reorder rows based on components
+taxa_order <- unlist(components_node_list)
+taxa_order <- rlist::list.reverse(taxa_order)
+binarized_matrix <- binarized_matrix[taxa_order,,drop=FALSE]
+# Reorder columns based on components
+pathway_order <- unlist(lapply(connected_components_graphs, function(g) {
+  g_df <- igraph::as_data_frame(g)
+  return(unique(g_df$sharedPathway))
+}))
+pathway_order <- rlist::list.reverse(pathway_order)
+binarized_matrix <- binarized_matrix[,pathway_order]
+
+# A nicer looking heatmap
+heatmap(binarized_matrix, scale = "none", col = c("white", "#6f7075"), Rowv = NA, Colv = NA, cexRow = 0.6) 
+
