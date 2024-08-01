@@ -11,7 +11,7 @@ library(stringr)
 # Get the daily baby genus data
 species_collection <- getCollection(
   microbiomeData::NICU_NEC,
-  "Shotgun metagenomics Genus (Relative taxonomic abundance analysis)",
+  "Shotgun metagenomics Species (Relative taxonomic abundance analysis)",
   continuousMetadataOnly = FALSE
 )
 pathway_collection <- getCollection(
@@ -209,6 +209,17 @@ control_graph <- graph_list[[4]]
 coords <- as.data.frame(layout_in_circle(combined_graph))
 coords$node_name <- V(combined_graph)$name
 
+## (from stack overflow) Get the labels aligned consistently around the edge of the circle
+## for any n of nodes.
+## This code borrows bits of ggplot2's polar_coord function
+## start = offset from 12 o'clock in radians
+## direction = 1 for clockwise; -1 for anti-clockwise.
+
+radian.rescale <- function(x, start=0, direction=1) {
+  c.rotate <- function(x) (x + start) %% (2 * pi) * direction
+  c.rotate(scales::rescale(x, c(0, 2 * pi), range(x)))
+}
+lab.locs <- radian.rescale(x=1:length(V(combined_graph)), direction=-1, start=0)
 
 # Plot pre-diagnosis
 V(pre_graph)$color <- unlist(lapply(V(pre_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
@@ -217,14 +228,29 @@ pre_coords <- as.matrix(coords[match(V(pre_graph)$name, coords$node_name), 1:2])
 igraph::plot.igraph(
   pre_graph,
   arrow.mode=0,
-  vertex.label.dist=1,
-  vertex.label.degree=0,
-  vertex.size=10,
+  vertex.label="",
+  # vertex.label.dist=4,
+  # vertex.label.degree=lab.locs[which(V(pre_graph)$name %in% V(combined_graph)$name)],
+  vertex.size=5,
   main="pre-diagnosis",
   layout=pre_coords,
-  rescale=F,xlim=c(-1,1),ylim=c(-1,1)
+  rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
 )
 
+## Apply labels manually
+#Specify x and y coordinates of labels, adjust outward as desired
+x = pre_coords[,1]*1.3
+y = pre_coords[,2]*1.3
+
+#create vector of angles for text based on number of nodes (flipping the orientation of the words half way around so none appear upside down)
+angle = ifelse(atan(-(pre_coords[,1]/pre_coords[,2]))*(180/pi) < 0,  90 + atan(-(pre_coords[,1]/pre_coords[,2]))*(180/pi), 270 + atan(-pre_coords[,1]/pre_coords[,2])*(180/pi))
+
+#Apply the text labels with a loop with angle as srt
+for (i in 1:length(x)) {
+  text(x=x[i], y=y[i], labels=V(pre_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="black", srt=angle[i], xpd=T)
+}
+
+## Almost graph
 V(almost_graph)$color <- unlist(lapply(V(almost_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
 V(almost_graph)$label.color <- V(almost_graph)$color
 almost_coords <- as.matrix(coords[match(V(almost_graph)$name, coords$node_name), 1:2])
@@ -236,8 +262,23 @@ igraph::plot.igraph(
   vertex.size=10,
   main="just-before-diagnosis",
   layout=almost_coords,
-  rescale=F,xlim=c(-1,1),ylim=c(-1,1)
+  rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
 )
+## Apply labels manually
+#Specify x and y coordinates of labels, adjust outward as desired
+subgraph_coords <- post_coords
+x = subgraph_coords[,1]*1.3
+y = subgraph_coords[,2]*1.3
+
+#create vector of angles for text based on number of nodes (flipping the orientation of the words half way around so none appear upside down)
+angle = ifelse(atan(-(subgraph_coords[,1]/subgraph_coords[,2]))*(180/pi) < 0,  90 + atan(-(subgraph_coords[,1]/subgraph_coords[,2]))*(180/pi), 270 + atan(-subgraph_coords[,1]/subgraph_coords[,2])*(180/pi))
+
+#Apply the text labels with a loop with angle as srt
+for (i in 1:length(x)) {
+  text(x=x[i], y=y[i], labels=V(post_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="black", srt=angle[i], xpd=T)
+}
+
+
 
 
 
@@ -252,7 +293,7 @@ igraph::plot.igraph(
   vertex.size=10,
   main='post-diagnosis',
   layout=post_coords,
-  rescale=F,xlim=c(-1,1),ylim=c(-1,1)
+  rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
 )
 
 
@@ -267,7 +308,7 @@ igraph::plot.igraph(
   vertex.size=10,
   main='control',
   layout=control_coords,
-  rescale=F,xlim=c(-1,1),ylim=c(-1,1)
+  rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
 )
 
 
