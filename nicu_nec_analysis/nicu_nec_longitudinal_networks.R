@@ -7,6 +7,7 @@ library(MicrobiomeDB, quietly = TRUE)
 library(igraph, quietly = TRUE)
 library(ggplot2)
 library(stringr)
+source("nicu_nec_analysis/utils.R")
 
 # Get the daily baby genus data
 species_collection <- getCollection(
@@ -67,123 +68,25 @@ graph_list <- lapply(diagnosis_day, function(day) {
     recordIdColumn = recordIColName,
     ancestorIdColumns = ancestorIdColNames)
   
-  pathway_vs_species <- correlation(day_species_collection, day_pathways_collection, method = 'spearman')
+  shared_pathway_network <- createSharedPathwayNetwork(day_species_collection, day_pathways_collection, method="spearman", corrCoeffThreshold = 0.5, pValueThreshold = 0.05)
   
-  
-  # Filter and extract data.table. IMPORTANT, this filtering here is our definition
-  # of "correlated". To create the network, we must turn correlation into a binary
-  # thing - either a taxon is correlated with a pathway or it isn't. To make this
-  # more clear, when i mean correlated and passing filters, i'll write "correlated".
-  corr_stats <- data.table::setDT(pathway_vs_species@statistics@statistics)
-  corr_stats_filtered <- corr_stats[corr_stats$correlationCoef >= 0.5 & corr_stats$pValue <= 0.05, ]
-  
-  
-  # Now what we need to do is turn this list of "correlations" into a network
-  # I'll use for loops for clarity.
-  # Initialize empty data.frame
-  network_df <- data.frame(
-    taxonA = character(),
-    taxonB = character(),
-    sharedPathway = character(),
-    stringsAsFactors = FALSE,
-    weight = numeric()
-  )
-  
-  pathways <- as.character(unique(corr_stats_filtered$data2))
-  for (pathway in pathways) {
-    taxa_correlated_with_pathway <- corr_stats_filtered$data1[which(corr_stats_filtered$data2 == pathway)]
-    # We need at least two taxa to be correlated with the pathway to make any edges!
-    if (length(taxa_correlated_with_pathway) > 1){
-      # Add all pairs of taxa to the network data frame
-      for (i in 1:(length(taxa_correlated_with_pathway)-1)) {
-        taxon <- taxa_correlated_with_pathway[i]
-        for (j in (i+1):length(taxa_correlated_with_pathway)) {
-          # Does this edge already exist?
-          if(nrow(network_df[network_df$taxonA == taxon & network_df$taxonB == taxa_correlated_with_pathway[j], ]) > 0) {
-            # If so, increment the weight
-            network_df[network_df$taxonA == taxon & network_df$taxonB == taxa_correlated_with_pathway[j], ]$weight <- network_df[network_df$taxonA == taxon & network_df$taxonB == taxa_correlated_with_pathway[j], ]$weight + 1
-            # Append this pathway to the pathway list
-            network_df[network_df$taxonA == taxon & network_df$taxonB == taxa_correlated_with_pathway[j], ]$sharedPathway <- paste(network_df[network_df$taxonA == taxon & network_df$taxonB == taxa_correlated_with_pathway[j], ]$sharedPathway, pathway, sep=",, ")
-          } else {
-            # If not, add the edge
-            network_df <- rbind(network_df, data.frame(taxonA = taxon, taxonB = taxa_correlated_with_pathway[j], sharedPathway=pathway, weight=1, stringsAsFactors = FALSE))
-          }
-        }
-      }
-    } else if (length(taxa_correlated_with_pathway) == 1) {
-      # Then there's just a lonely node. Let's add it with a self-loop to keep track of 
-      # all microbes doing things in the system
-      taxon <- taxa_correlated_with_pathway[1]
-      # Does this edge already exist?
-      if(nrow(network_df[network_df$taxonA == taxon & network_df$taxonB == taxon, ]) > 0) {
-        # If so, increment the weight
-        network_df[network_df$taxonA == taxon & network_df$taxonB == taxon, ]$weight <- network_df[network_df$taxonA == taxon & network_df$taxonB == taxon, ]$weight + 1
-        # Append this pathway to the pathway list
-        network_df[network_df$taxonA == taxon & network_df$taxonB == taxon, ]$sharedPathway <- paste(network_df[network_df$taxonA == taxon & network_df$taxonB == taxon, ]$sharedPathway, pathway, sep=",, ")
-      } else {
-        # If not, add the edge
-        network_df <- rbind(network_df, data.frame(taxonA = taxon, taxonB = taxon, sharedPathway=pathway, weight=1, stringsAsFactors = FALSE))
-      }
-    }
-  }
-  
-  # Now make an igraph network
-  network <- igraph::graph_from_data_frame(network_df, directed=FALSE)
-  # We may have many duplicate edges. If two nodes have k edges between them, it
-  # means they are "correlated" with the same k pathways. 
-  # We are not using that information at this time, so we'll simplify the graph
-  # by removing duplicate edges.
-  simplified_network <- simplify(
-    network,
-    remove.multiple = TRUE,
-    remove.loops = FALSE
-  )
-  
-  E(simplified_network)$sharedPathway <- network_df$sharedPathway
-  
-  V(simplified_network)$color <- unlist(lapply(V(simplified_network)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
-  V(simplified_network)$label.color <- V(simplified_network)$color
+  V(shared_pathway_network)$color <- unlist(lapply(V(shared_pathway_network)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
+  V(shared_pathway_network)$label.color <- V(shared_pathway_network)$color
   
   igraph::plot.igraph(
-    simplified_network,
+    shared_pathway_network,
     arrow.mode=0,
     vertex.label.dist=3,
     vertex.label.degree=0,
     vertex.size=2,
     main=paste("Pathway network,", day),
-    edge.width=E(simplified_network)$weight/10,
-    layout=layout_in_circle(simplified_network)
+    edge.width=E(shared_pathway_network)$weight/10,
+    layout=layout_in_circle(shared_pathway_network, order(V(shared_pathway_network)$name))
   )
-  return(simplified_network)
+  return(shared_pathway_network)
 })
 
-## Now can do network stats on the graph list
-cluster_results <- data.frame(nclusters=numeric(), max_size=numeric())
-for (g in graph_list){
-  clustering <- cluster_infomap(g)
-  cluster_results <- rbind(cluster_results, data.frame(
-    nclusters=length(clustering),
-    max_size=max(unlist(lapply(seq_along(clustering),function(x){length(clustering[[x]])})))
-  ))
-}
 
-n_pathways <- unlist(lapply(graph_list, function(g) {
-  included_pathways <- unique(unlist(strsplit(unique(E(g)$sharedPathway), ",, ")))
-  return(length(included_pathways))
-}))
-
-
-gg_data <- data.frame(diagnosis_day, cluster_results$nclusters, cluster_results$max_size, n_pathways)
-
-# Plot
-ggplot(gg_data, aes(x=diagnosis_day, y=cluster_results.nclusters)) +
-  geom_line()
-
-ggplot(gg_data, aes(x=diagnosis_day, y=cluster_results.max_size)) +
-  geom_line()
-
-ggplot(gg_data, aes(x=diagnosis_day, y=n_pathways)) +
-  geom_line()
 
 
 ## Let's plot them all on the same layout for better comparison
@@ -206,7 +109,7 @@ pre_graph <- graph_list[[1]]
 almost_graph <- graph_list[[2]]
 post_graph <- graph_list[[3]]
 control_graph <- graph_list[[4]]
-coords <- as.data.frame(layout_in_circle(combined_graph))
+coords <- as.data.frame(layout_in_circle(combined_graph, order(V(combined_graph)$name)))
 coords$node_name <- V(combined_graph)$name
 
 ## (from stack overflow) Get the labels aligned consistently around the edge of the circle
@@ -229,8 +132,6 @@ igraph::plot.igraph(
   pre_graph,
   arrow.mode=0,
   vertex.label="",
-  # vertex.label.dist=4,
-  # vertex.label.degree=lab.locs[which(V(pre_graph)$name %in% V(combined_graph)$name)],
   vertex.size=5,
   main="pre-diagnosis",
   layout=pre_coords,
@@ -247,8 +148,12 @@ angle = ifelse(atan(-(pre_coords[,1]/pre_coords[,2]))*(180/pi) < 0,  90 + atan(-
 
 #Apply the text labels with a loop with angle as srt
 for (i in 1:length(x)) {
-  text(x=x[i], y=y[i], labels=V(pre_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="black", srt=angle[i], xpd=T)
+  if(any(unlist(lapply(cool_taxa, function(s) {grepl(s, V(pre_graph)$name[i])})))) {
+    text(x=x[i], y=y[i], labels=V(pre_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="black", srt=angle[i], xpd=T)
+  }
 }
+
+
 
 ## Almost graph
 V(almost_graph)$color <- unlist(lapply(V(almost_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
@@ -257,13 +162,44 @@ almost_coords <- as.matrix(coords[match(V(almost_graph)$name, coords$node_name),
 igraph::plot.igraph(
   almost_graph,
   arrow.mode=0,
-  vertex.label.dist=1,
-  vertex.label.degree=0,
-  vertex.size=10,
-  main="just-before-diagnosis",
+  vertex.label="",
+  vertex.size=5,
+  main="almost-diagnosis",
   layout=almost_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
 )
+## Apply labels manually
+#Specify x and y coordinates of labels, adjust outward as desired
+subgraph_coords <- almost_coords
+x = subgraph_coords[,1]*1.3
+y = subgraph_coords[,2]*1.3
+
+#create vector of angles for text based on number of nodes (flipping the orientation of the words half way around so none appear upside down)
+angle = ifelse(atan(-(subgraph_coords[,1]/subgraph_coords[,2]))*(180/pi) < 0,  90 + atan(-(subgraph_coords[,1]/subgraph_coords[,2]))*(180/pi), 270 + atan(-subgraph_coords[,1]/subgraph_coords[,2])*(180/pi))
+
+#Apply the text labels with a loop with angle as srt
+for (i in 1:length(x)) {
+  if(any(unlist(lapply(cool_taxa, function(s) {grepl(s, V(almost_graph)$name[i])})))) {
+    text(x=x[i], y=y[i], labels=V(almost_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="black", srt=angle[i], xpd=T)
+  }
+}
+
+
+
+## Post graph
+V(post_graph)$color <- unlist(lapply(V(post_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
+V(post_graph)$label.color <- V(post_graph)$color
+post_coords <- as.matrix(coords[match(V(post_graph)$name, coords$node_name), 1:2])
+igraph::plot.igraph(
+  post_graph,
+  arrow.mode=0,
+  vertex.label="",
+  vertex.size=5,
+  main="post-diagnosis",
+  layout=post_coords,
+  rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
+)
+
 ## Apply labels manually
 #Specify x and y coordinates of labels, adjust outward as desired
 subgraph_coords <- post_coords
@@ -275,41 +211,43 @@ angle = ifelse(atan(-(subgraph_coords[,1]/subgraph_coords[,2]))*(180/pi) < 0,  9
 
 #Apply the text labels with a loop with angle as srt
 for (i in 1:length(x)) {
-  text(x=x[i], y=y[i], labels=V(post_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="black", srt=angle[i], xpd=T)
+  if(any(unlist(lapply(cool_taxa, function(s) {grepl(s, V(post_graph)$name[i])})))) {
+    text(x=x[i], y=y[i], labels=V(post_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="black", srt=angle[i], xpd=T)
+  }
 }
 
 
 
-
-
-V(post_graph)$color <- unlist(lapply(V(post_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
-V(post_graph)$label.color <- V(post_graph)$color
-post_coords <- as.matrix(coords[match(V(post_graph)$name, coords$node_name), 1:2])
-igraph::plot.igraph(
-  post_graph,
-  arrow.mode=0,
-  vertex.label.dist=1,
-  vertex.label.degree=0,
-  vertex.size=10,
-  main='post-diagnosis',
-  layout=post_coords,
-  rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
-)
-
-
+## Control graph
 V(control_graph)$color <- unlist(lapply(V(control_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
 V(control_graph)$label.color <- V(control_graph)$color
 control_coords <- as.matrix(coords[match(V(control_graph)$name, coords$node_name), 1:2])
 igraph::plot.igraph(
   control_graph,
   arrow.mode=0,
-  vertex.label.dist=1,
-  vertex.label.degree=0,
-  vertex.size=10,
-  main='control',
+  vertex.label="",
+  vertex.size=5,
+  main="control",
   layout=control_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
 )
+
+## Apply labels manually
+#Specify x and y coordinates of labels, adjust outward as desired
+subgraph_coords <- control_coords
+x = subgraph_coords[,1]*1.3
+y = subgraph_coords[,2]*1.3
+
+#create vector of angles for text based on number of nodes (flipping the orientation of the words half way around so none appear upside down)
+angle = ifelse(atan(-(subgraph_coords[,1]/subgraph_coords[,2]))*(180/pi) < 0,  90 + atan(-(subgraph_coords[,1]/subgraph_coords[,2]))*(180/pi), 270 + atan(-subgraph_coords[,1]/subgraph_coords[,2])*(180/pi))
+
+#Apply the text labels with a loop with angle as srt
+for (i in 1:length(x)) {
+  if(any(unlist(lapply(cool_taxa, function(s) {grepl(s, V(control_graph)$name[i])})))) {
+    text(x=x[i], y=y[i], labels=V(control_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="black", srt=angle[i], xpd=T)
+  }
+}
+
 
 
 
