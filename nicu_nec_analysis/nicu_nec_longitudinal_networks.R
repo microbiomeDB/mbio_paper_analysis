@@ -73,6 +73,11 @@ graph_list <- lapply(diagnosis_day, function(day) {
   V(shared_pathway_network)$color <- unlist(lapply(V(shared_pathway_network)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
   V(shared_pathway_network)$label.color <- V(shared_pathway_network)$color
   
+  # Let's assign the average abundance to each node so we can use it later
+  avg_abundances <- colMeans(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)])
+
+  V(shared_pathway_network)$mean_abundance <- unlist(lapply(V(shared_pathway_network)$name, function(name) {avg_abundances[which(names(avg_abundances) %in% name)]}))
+  
   igraph::plot.igraph(
     shared_pathway_network,
     arrow.mode=0,
@@ -132,7 +137,7 @@ igraph::plot.igraph(
   pre_graph,
   arrow.mode=0,
   vertex.label="",
-  vertex.size=5,
+  vertex.size=sqrt(V(pre_graph)$mean_abundance/pi)*50, ## vertex.size maps to radius. Rescale for area
   main="pre-diagnosis",
   layout=pre_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
@@ -163,7 +168,7 @@ igraph::plot.igraph(
   almost_graph,
   arrow.mode=0,
   vertex.label="",
-  vertex.size=5,
+  vertex.size=sqrt(V(almost_graph)$mean_abundance/pi)*50, ## vertex.size maps to radius. Rescale for area
   main="almost-diagnosis",
   layout=almost_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
@@ -194,7 +199,7 @@ igraph::plot.igraph(
   post_graph,
   arrow.mode=0,
   vertex.label="",
-  vertex.size=5,
+  vertex.size=sqrt(V(post_graph)$mean_abundance/pi)*50, ## vertex.size maps to radius. Rescale for area
   main="post-diagnosis",
   layout=post_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
@@ -226,7 +231,7 @@ igraph::plot.igraph(
   control_graph,
   arrow.mode=0,
   vertex.label="",
-  vertex.size=5,
+  vertex.size=sqrt(V(control_graph)$mean_abundance/pi)*50, ## vertex.size maps to radius. Rescale for area
   main="control",
   layout=control_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
@@ -247,8 +252,6 @@ for (i in 1:length(x)) {
     text(x=x[i], y=y[i], labels=V(control_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="black", srt=angle[i], xpd=T)
   }
 }
-
-
 
 
 
