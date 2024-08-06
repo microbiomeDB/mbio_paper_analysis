@@ -11,7 +11,12 @@ createSharedPathwayNetwork <- function(taxaCollection, pathwayCollection, method
   # thing - either a taxon is correlated with a pathway or it isn't. To make this
   # more clear, when i mean correlated and passing filters, i'll write "correlated".
   corr_stats <- data.table::setDT(pathway_vs_species@statistics@statistics)
-  corr_stats_filtered <- corr_stats[corr_stats$correlationCoef >= corrCoeffThreshold & corr_stats$pValue <= pValueThreshold, ]
+  # Assume a negative threshold means <= and a positive one means >=
+  if (corrCoeffThreshold < 0) {
+    corr_stats_filtered <- corr_stats[corr_stats$correlationCoef <= corrCoeffThreshold & corr_stats$pValue <= pValueThreshold, ]
+  } else {
+    corr_stats_filtered <- corr_stats[corr_stats$correlationCoef >= corrCoeffThreshold & corr_stats$pValue <= pValueThreshold, ]
+  }
   
   
   # Now what we need to do is turn this list of "correlations" into a network

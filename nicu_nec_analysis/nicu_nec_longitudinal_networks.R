@@ -30,7 +30,7 @@ pathwayAssayData <- microbiomeComputations::getAbundances(pathway_collection)
 ancestorIdColNames <- species_collection@ancestorIdColumns # Remove me from calculations
 recordIColName <- species_collection@recordIdColumn # Use me to match data
 
-diagnosis_day <- sort(unique(sampleMetadata$days_of_period_nec_diagnosed_days))
+# diagnosis_day <- sort(unique(sampleMetadata$days_of_period_nec_diagnosed_days))
 diagnosis_day <- c("pre", "almost", "post", "control") # For making ranges
 cool_taxa <- c("Clostridium", "Klebsiella")
 
@@ -75,6 +75,7 @@ graph_list <- lapply(diagnosis_day, function(day) {
   
   # Let's assign the average abundance to each node so we can use it later
   avg_abundances <- colMeans(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)])
+  # avg_abundances <- miscTools::colMedians(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)])
 
   V(shared_pathway_network)$mean_abundance <- unlist(lapply(V(shared_pathway_network)$name, function(name) {avg_abundances[which(names(avg_abundances) %in% name)]}))
   
@@ -90,6 +91,7 @@ graph_list <- lapply(diagnosis_day, function(day) {
   )
   return(shared_pathway_network)
 })
+
 
 
 
@@ -129,6 +131,8 @@ radian.rescale <- function(x, start=0, direction=1) {
 }
 lab.locs <- radian.rescale(x=1:length(V(combined_graph)), direction=-1, start=0)
 
+vertex_scaling_factor <- 50
+
 # Plot pre-diagnosis
 V(pre_graph)$color <- unlist(lapply(V(pre_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
 V(pre_graph)$label.color <- V(pre_graph)$color
@@ -137,7 +141,7 @@ igraph::plot.igraph(
   pre_graph,
   arrow.mode=0,
   vertex.label="",
-  vertex.size=sqrt(V(pre_graph)$mean_abundance/pi)*50, ## vertex.size maps to radius. Rescale for area
+  vertex.size=sqrt(V(pre_graph)$mean_abundance/pi)*vertex_scaling_factor, ## vertex.size maps to radius. Rescale for area
   main="pre-diagnosis",
   layout=pre_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
@@ -168,7 +172,7 @@ igraph::plot.igraph(
   almost_graph,
   arrow.mode=0,
   vertex.label="",
-  vertex.size=sqrt(V(almost_graph)$mean_abundance/pi)*50, ## vertex.size maps to radius. Rescale for area
+  vertex.size=sqrt(V(almost_graph)$mean_abundance/pi)*vertex_scaling_factor, ## vertex.size maps to radius. Rescale for area
   main="almost-diagnosis",
   layout=almost_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
@@ -199,7 +203,7 @@ igraph::plot.igraph(
   post_graph,
   arrow.mode=0,
   vertex.label="",
-  vertex.size=sqrt(V(post_graph)$mean_abundance/pi)*50, ## vertex.size maps to radius. Rescale for area
+  vertex.size=sqrt(V(post_graph)$mean_abundance/pi)*vertex_scaling_factor, ## vertex.size maps to radius. Rescale for area
   main="post-diagnosis",
   layout=post_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
@@ -231,7 +235,7 @@ igraph::plot.igraph(
   control_graph,
   arrow.mode=0,
   vertex.label="",
-  vertex.size=sqrt(V(control_graph)$mean_abundance/pi)*50, ## vertex.size maps to radius. Rescale for area
+  vertex.size=sqrt(V(control_graph)$mean_abundance/pi)*vertex_scaling_factor, ## vertex.size maps to radius. Rescale for area
   main="control",
   layout=control_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
@@ -252,6 +256,39 @@ for (i in 1:length(x)) {
     text(x=x[i], y=y[i], labels=V(control_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="black", srt=angle[i], xpd=T)
   }
 }
+
+
+
+## Now let's make a legend
+# We'll have to make a fake network to create the legend
+# Create a network with four nodes and no edges
+legend_graph <- igraph::make_empty_graph(4)
+
+# Need to assign appropriate mean abundance values to the legend_graph nodes.
+# min_abundance <- min(V(pre_graph)$mean_abundance, V(almost_graph)$mean_abundance, V(post_graph)$mean_abundance, V(control_graph)$mean_abundance)
+# max_abundance <- max(V(pre_graph)$mean_abundance, V(almost_graph)$mean_abundance, V(post_graph)$mean_abundance, V(control_graph)$mean_abundance)
+# Update above with sig figs, but for now let's just pretend
+min_abundance <- 0.000001
+max_abundance <- 1
+legend_graph <- igraph::set_vertex_attr(legend_graph, "mean_abundance", value=c(min_abundance, 0.0001, 0.01, max_abundance))
+
+# Now assign locations
+# It doesn't really matter where the locations are, since i can move them in illustrator
+legend_coords <- matrix(c(0, 0, 0, 0.5, 0, 1, 0, 2), ncol=2, byrow=TRUE)
+
+# Plot legend
+igraph::plot.igraph(
+  legend_graph,
+  arrow.mode=0,
+  vertex.label="",
+  vertex.size=sqrt(V(legend_graph)$mean_abundance/pi)*vertex_scaling_factor, ## vertex.size maps to radius. Rescale for area
+  main="Legend",
+  layout=legend_coords,
+  rescale=F,
+  xlim=c(-0.8,0.8),
+  ylim=c(-0.8,0.8)
+)
+
 
 
 
