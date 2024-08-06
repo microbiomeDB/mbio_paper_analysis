@@ -131,7 +131,9 @@ radian.rescale <- function(x, start=0, direction=1) {
 }
 lab.locs <- radian.rescale(x=1:length(V(combined_graph)), direction=-1, start=0)
 
-vertex_scaling_factor <- 50
+
+min_abundance <- min(V(pre_graph)$mean_abundance, V(almost_graph)$mean_abundance, V(post_graph)$mean_abundance, V(control_graph)$mean_abundance)
+max_abundance <- max(V(pre_graph)$mean_abundance, V(almost_graph)$mean_abundance, V(post_graph)$mean_abundance, V(control_graph)$mean_abundance)
 
 # Plot pre-diagnosis
 V(pre_graph)$color <- unlist(lapply(V(pre_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
@@ -141,7 +143,7 @@ igraph::plot.igraph(
   pre_graph,
   arrow.mode=0,
   vertex.label="",
-  vertex.size=sqrt(V(pre_graph)$mean_abundance/pi)*vertex_scaling_factor, ## vertex.size maps to radius. Rescale for area
+  vertex.size=rescale(sqrt(V(pre_graph)$mean_abundance/pi), a=1, b=8, min_value = min_abundance, max_value=max_abundance), ## vertex.size maps to radius. Rescale for area
   main="pre-diagnosis",
   layout=pre_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
@@ -172,7 +174,7 @@ igraph::plot.igraph(
   almost_graph,
   arrow.mode=0,
   vertex.label="",
-  vertex.size=sqrt(V(almost_graph)$mean_abundance/pi)*vertex_scaling_factor, ## vertex.size maps to radius. Rescale for area
+  vertex.size=rescale(sqrt(V(almost_graph)$mean_abundance/pi), a=1, b=8, min_value = min_abundance, max_value=max_abundance), ## vertex.size maps to radius. Rescale for area
   main="almost-diagnosis",
   layout=almost_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
@@ -203,7 +205,7 @@ igraph::plot.igraph(
   post_graph,
   arrow.mode=0,
   vertex.label="",
-  vertex.size=sqrt(V(post_graph)$mean_abundance/pi)*vertex_scaling_factor, ## vertex.size maps to radius. Rescale for area
+  vertex.size=rescale(sqrt(V(post_graph)$mean_abundance/pi), a=1, b=8, min_value = min_abundance, max_value=max_abundance), ## vertex.size maps to radius. Rescale for area
   main="post-diagnosis",
   layout=post_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
@@ -226,7 +228,6 @@ for (i in 1:length(x)) {
 }
 
 
-
 ## Control graph
 V(control_graph)$color <- unlist(lapply(V(control_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
 V(control_graph)$label.color <- V(control_graph)$color
@@ -235,7 +236,7 @@ igraph::plot.igraph(
   control_graph,
   arrow.mode=0,
   vertex.label="",
-  vertex.size=sqrt(V(control_graph)$mean_abundance/pi)*vertex_scaling_factor, ## vertex.size maps to radius. Rescale for area
+  vertex.size=rescale(sqrt(V(control_graph)$mean_abundance/pi), a=1, b=8, min_value = min_abundance, max_value=max_abundance), ## vertex.size maps to radius. Rescale for area
   main="control",
   layout=control_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
@@ -262,26 +263,25 @@ for (i in 1:length(x)) {
 ## Now let's make a legend
 # We'll have to make a fake network to create the legend
 # Create a network with four nodes and no edges
-legend_graph <- igraph::make_empty_graph(4)
+legend_graph <- igraph::make_empty_graph(3)
 
 # Need to assign appropriate mean abundance values to the legend_graph nodes.
-# min_abundance <- min(V(pre_graph)$mean_abundance, V(almost_graph)$mean_abundance, V(post_graph)$mean_abundance, V(control_graph)$mean_abundance)
-# max_abundance <- max(V(pre_graph)$mean_abundance, V(almost_graph)$mean_abundance, V(post_graph)$mean_abundance, V(control_graph)$mean_abundance)
-# Update above with sig figs, but for now let's just pretend
-min_abundance <- 0.000001
-max_abundance <- 1
-legend_graph <- igraph::set_vertex_attr(legend_graph, "mean_abundance", value=c(min_abundance, 0.0001, 0.01, max_abundance))
+
+legend_graph <- igraph::set_vertex_attr(legend_graph, "size", value=c(1, 5, 9))
 
 # Now assign locations
 # It doesn't really matter where the locations are, since i can move them in illustrator
-legend_coords <- matrix(c(0, 0, 0, 0.5, 0, 1, 0, 2), ncol=2, byrow=TRUE)
+legend_coords <- matrix(c(0, 0, 0, 0.25, 0, 0.5), ncol=2, byrow=TRUE)
 
 # Plot legend
 igraph::plot.igraph(
   legend_graph,
   arrow.mode=0,
-  vertex.label="",
-  vertex.size=sqrt(V(legend_graph)$mean_abundance/pi)*vertex_scaling_factor, ## vertex.size maps to radius. Rescale for area
+  vertex.label=c(min_abundance, (max_abundance - min_abundance)/2, max_abundance),
+  vertex.label.dist=5,
+  vertex.color="white",
+  vertex.label.degree = 0,
+  vertex.size=V(legend_graph)$size,
   main="Legend",
   layout=legend_coords,
   rescale=F,

@@ -78,3 +78,8 @@ createSharedPathwayNetwork <- function(taxaCollection, pathwayCollection, method
 
   return(network)
 }
+
+## Rescale values to be between min_value and max_value
+rescale <- function(x, a=1, b=20, min_value=0, max_value=1) {
+  return((b - a) * (x - min_value) / (max_value - min_value) + a)
+}
