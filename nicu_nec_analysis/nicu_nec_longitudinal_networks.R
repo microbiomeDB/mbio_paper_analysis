@@ -76,6 +76,9 @@ graph_list <- lapply(diagnosis_day, function(day) {
   # Let's assign the average abundance to each node so we can use it later
   avg_abundances <- colMeans(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)])
   # avg_abundances <- miscTools::colMedians(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)])
+  # avg_abundances <- apply(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)], 2, sd)
+  #log transform produces too many infs 
+  # avg_abundances <- log(miscTools::colMedians(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)]))
 
   V(shared_pathway_network)$mean_abundance <- unlist(lapply(V(shared_pathway_network)$name, function(name) {avg_abundances[which(names(avg_abundances) %in% name)]}))
   
@@ -134,6 +137,8 @@ lab.locs <- radian.rescale(x=1:length(V(combined_graph)), direction=-1, start=0)
 
 min_abundance <- min(V(pre_graph)$mean_abundance, V(almost_graph)$mean_abundance, V(post_graph)$mean_abundance, V(control_graph)$mean_abundance)
 max_abundance <- max(V(pre_graph)$mean_abundance, V(almost_graph)$mean_abundance, V(post_graph)$mean_abundance, V(control_graph)$mean_abundance)
+min_vertex_size <- 1
+max_vertex_size <- 9
 
 # Plot pre-diagnosis
 V(pre_graph)$color <- unlist(lapply(V(pre_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
@@ -143,8 +148,8 @@ igraph::plot.igraph(
   pre_graph,
   arrow.mode=0,
   vertex.label="",
-  vertex.size=rescale(sqrt(V(pre_graph)$mean_abundance/pi), a=1, b=8, min_value = min_abundance, max_value=max_abundance), ## vertex.size maps to radius. Rescale for area
-  main="pre-diagnosis",
+  vertex.size=rescale(sqrt(V(pre_graph)$mean_abundance/pi), a=min_vertex_size, b=max_vertex_size, min_value = min_abundance, max_value=max_abundance), ## vertex.size maps to radius. Rescale for area
+  main="pre-diagnosis (-inf, 2)",
   layout=pre_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
 )
@@ -174,8 +179,8 @@ igraph::plot.igraph(
   almost_graph,
   arrow.mode=0,
   vertex.label="",
-  vertex.size=rescale(sqrt(V(almost_graph)$mean_abundance/pi), a=1, b=8, min_value = min_abundance, max_value=max_abundance), ## vertex.size maps to radius. Rescale for area
-  main="almost-diagnosis",
+  vertex.size=rescale(sqrt(V(almost_graph)$mean_abundance/pi), a=min_vertex_size, b=max_vertex_size, min_value = min_abundance, max_value=max_abundance), ## vertex.size maps to radius. Rescale for area
+  main="almost-diagnosis [-2, 0)",
   layout=almost_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
 )
@@ -205,8 +210,8 @@ igraph::plot.igraph(
   post_graph,
   arrow.mode=0,
   vertex.label="",
-  vertex.size=rescale(sqrt(V(post_graph)$mean_abundance/pi), a=1, b=8, min_value = min_abundance, max_value=max_abundance), ## vertex.size maps to radius. Rescale for area
-  main="post-diagnosis",
+  vertex.size=rescale(sqrt(V(post_graph)$mean_abundance/pi), a=min_vertex_size, b=max_vertex_size, min_value = min_abundance, max_value=max_abundance), ## vertex.size maps to radius. Rescale for area
+  main="post-diagnosis [0, inf)",
   layout=post_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
 )
@@ -236,7 +241,7 @@ igraph::plot.igraph(
   control_graph,
   arrow.mode=0,
   vertex.label="",
-  vertex.size=rescale(sqrt(V(control_graph)$mean_abundance/pi), a=1, b=8, min_value = min_abundance, max_value=max_abundance), ## vertex.size maps to radius. Rescale for area
+  vertex.size=rescale(sqrt(V(control_graph)$mean_abundance/pi), a=min_vertex_size, b=max_vertex_size, min_value = min_abundance, max_value=max_abundance), ## vertex.size maps to radius. Rescale for area
   main="control",
   layout=control_coords,
   rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
@@ -267,7 +272,7 @@ legend_graph <- igraph::make_empty_graph(3)
 
 # Need to assign appropriate mean abundance values to the legend_graph nodes.
 
-legend_graph <- igraph::set_vertex_attr(legend_graph, "size", value=c(1, 5, 9))
+legend_graph <- igraph::set_vertex_attr(legend_graph, "size", value=c(min_vertex_size, min_vertex_size + (max_vertex_size - min_vertex_size)/2, max_vertex_size))
 
 # Now assign locations
 # It doesn't really matter where the locations are, since i can move them in illustrator
