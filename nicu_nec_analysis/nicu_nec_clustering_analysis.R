@@ -70,7 +70,8 @@ graph_list <- lapply(diagnosis_day, function(day) {
     vertex.size=2,
     main=paste("Pathway network,", day),
     edge.width=E(shared_pathway_network)$weight/10,
-    layout=layout_in_circle(shared_pathway_network, order(V(shared_pathway_network)$name))
+    layout=layout_nicely(shared_pathway_network)
+    # layout=layout_in_circle(shared_pathway_network, order(V(shared_pathway_network)$name))
   )
   return(shared_pathway_network)
 })
@@ -99,10 +100,18 @@ for (g in graph_list) {
   graph_n_clusters <- numeric()
   graph_max_size <- numeric()
 
+  # Remove isolated nodes and self loops for a more fair randomization test
+  g_simple <- simplify(g)
+  g_simple_noisolates <- delete.vertices(g_simple , which(degree(g_simple)==0))
+  
   for (i in 1:100) {
-    clustering <- cluster_louvain(g)
+    clustering <- cluster_infomap(g_simple_noisolates)
     graph_n_clusters <- c(graph_n_clusters, length(clustering))
     graph_max_size <- c(graph_max_size, max(unlist(lapply(seq_along(clustering),function(x){length(clustering[[x]])}))))
+    # For components
+    # comps <- components(g)
+    # graph_n_clusters <- c(graph_n_clusters, comps$no) # number of components
+    # graph_max_size <- c(graph_max_size, max(comps$csize))
   }
 
   # Next we need to randomize the network and perform the clustering again.
@@ -110,10 +119,14 @@ for (g in graph_list) {
   graph_randomized_n_clusters <- numeric()
   graph_randomized_max_size <- numeric()
   for (i in 1:1000) {
-    g_random <- rewire(g, with=keeping_degseq(loops = TRUE, niter = ecount(g)*10))
+    g_random <- rewire(g_simple_noisolates, with=keeping_degseq(loops = TRUE, niter = ecount(g)*10))
     clustering <- cluster_infomap(g_random)
     graph_randomized_n_clusters <- c(graph_randomized_n_clusters, length(clustering))
     graph_randomized_max_size <- c(graph_randomized_max_size, max(unlist(lapply(seq_along(clustering),function(x){length(clustering[[x]])}))))
+    # For components
+    # comps <- components(g_random)
+    # graph_randomized_n_clusters <- c(graph_randomized_n_clusters, comps$no) # number of components
+    # graph_randomized_max_size <- c(graph_randomized_max_size, max(comps$csize))
   }
 
   cluster_results <- rbind(cluster_results, data.frame(
@@ -124,11 +137,11 @@ for (g in graph_list) {
     max_size_upperq=quantile(graph_max_size, 0.75),
     max_size_lowerq=quantile(graph_max_size, 0.25),
     randomized_nclusters_med=median(graph_randomized_n_clusters),
-    randomized_nclusters_upperq=quantile(graph_randomized_n_clusters, 0.75),
-    randomized_nclusters_lowerq=quantile(graph_randomized_n_clusters, 0.25),
+    randomized_nclusters_upperq=quantile(graph_randomized_n_clusters, 0.95),
+    randomized_nclusters_lowerq=quantile(graph_randomized_n_clusters, 0.05),
     randomized_max_size_med=median(graph_randomized_max_size),
-    randomized_max_size_upperq=quantile(graph_randomized_max_size, 0.75),
-    randomized_max_size_lowerq=quantile(graph_randomized_max_size, 0.25),
+    randomized_max_size_upperq=quantile(graph_randomized_max_size, 0.95),
+    randomized_max_size_lowerq=quantile(graph_randomized_max_size, 0.05),
     stringsAsFactors=FALSE
   ))
 }
@@ -147,10 +160,20 @@ ggplot(gg_data, aes(x=diagnosis_day, y=cluster_results.max_size)) +
 
 library(plotly)
 fig <- plot_ly(gg_data, x = ~diagnosis_day)
-fig <- fig %>% add_trace(y = ~nclusters_med, name = 'nclusters_med',mode = 'lines') 
-fig <- fig %>% add_trace(y = ~randomized_nclusters_lowerq, name='lower', mode = 'lines')
-fig <- fig %>% add_trace(y = ~randomized_nclusters_upperq, name='upper', mode = 'lines', fill="tonexty")
-fig <- fig %>% add_trace(y = ~randomized_nclusters_med, name = 'randomized_nclusters_med', mode = 'lines+markers')
+fig <- fig %>% add_trace(y = ~nclusters_med, name = 'NEC samples',mode = 'lines+markers') 
+fig <- fig %>% add_trace(y = ~randomized_nclusters_lowerq, name='5% quantile', mode = 'lines')
+fig <- fig %>% add_trace(y = ~randomized_nclusters_upperq, name='95% quantile', mode = 'lines', fill="tonexty", color='orange')
+fig <- fig %>% add_trace(y = ~randomized_nclusters_med, name = 'Randomized networks, median', mode = 'lines+markers')
+fig <- fig %>% layout(title = "Number of clusters across diagnosis day for NEC samples and randomized model",
+                      xaxis = list(title = "Diagnosis day",
+                                   showline = TRUE,
+                                   zeroline = TRUE),
+                      yaxis = list(title = "Number of communities",
+                                   gridcolor = 'rgb(255,255,255)',
+                                   showline = TRUE,
+                                   zeroline = TRUE,
+                                   rangemode="tozero")
+                      )
 fig
 
 fig2 <- plot_ly(gg_data, x=~diagnosis_day)
@@ -159,3 +182,13 @@ fig2 <- fig2 %>% add_trace(y = ~randomized_max_size_lowerq, name="lower", mode="
 fig2 <- fig2 %>% add_trace(y = ~randomized_max_size_upperq, name="upper", mode="lines", fill="tonexty")
 fig2 <- fig2 %>% add_trace(y = ~randomized_max_size_med, name="random med", mode="lines")
 fig2
+
+
+## I guess this is what you have to do to save svg?
+
+install.packages('reticulate')
+reticulate::install_miniconda()
+reticulate::conda_install('r-reticulate', 'python-kaleido')
+reticulate::conda_install('r-reticulate', 'plotly', channel = 'plotly')
+reticulate::use_miniconda('r-reticulate')
+
