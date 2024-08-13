@@ -33,6 +33,7 @@ recordIColName <- species_collection@recordIdColumn # Use me to match data
 # diagnosis_day <- sort(unique(sampleMetadata$days_of_period_nec_diagnosed_days))
 diagnosis_day <- c("pre", "almost", "post", "control") # For making ranges
 cool_taxa <- c("Clostridium", "Klebsiella")
+cool_taxa_colors <- c("green", "blue")
 
 
 # Create a list of correlation graphs, one for each age in ages.
@@ -141,8 +142,27 @@ min_vertex_size <- 1
 max_vertex_size <- 9
 
 # Plot pre-diagnosis
-V(pre_graph)$color <- unlist(lapply(V(pre_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
+# Find all the neighbors of nodes that are in the cool taxa
+klebsiella_vertices <- V(pre_graph)[grep("Klebsiella", V(pre_graph)$name)]
+clostridium_vertices <- V(pre_graph)[grep("Clostridium", V(pre_graph)$name)]
+
+# Find all neighbors of all klebsiella and clostridium nodes
+klebsiella_neighbors <- unique(unlist(lapply(klebsiella_vertices, function(v) {neighbors(pre_graph, v)})))
+clostridium_neighbors <- unique(unlist(lapply(clostridium_vertices, function(v) {neighbors(pre_graph, v)})))
+# Remove klebsiella nodes from the list
+
+V(pre_graph)$color <- unlist(lapply(V(pre_graph)$name, function(v) {
+  if(grepl(cool_taxa[1], v)) {
+    return(cool_taxa_colors[1])
+  } else if(grepl(cool_taxa[2], v)) {
+    return(cool_taxa_colors[2])
+  } else {
+    return("white")
+  }
+  }))
 V(pre_graph)$label.color <- V(pre_graph)$color
+V(pre_graph)$frame.color[clostridium_neighbors] <- cool_taxa_colors[1]
+V(pre_graph)$frame.color[klebsiella_neighbors] <- cool_taxa_colors[2]
 pre_coords <- as.matrix(coords[match(V(pre_graph)$name, coords$node_name), 1:2])
 igraph::plot.igraph(
   pre_graph,
@@ -164,6 +184,14 @@ angle = ifelse(atan(-(pre_coords[,1]/pre_coords[,2]))*(180/pi) < 0,  90 + atan(-
 
 #Apply the text labels with a loop with angle as srt
 for (i in 1:length(x)) {
+  # Label neighbors as well
+  if (i %in% klebsiella_neighbors) {
+    text(x=x[i], y=y[i], labels=V(pre_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="gray", srt=angle[i], xpd=T)
+  }
+  if (i %in% clostridium_neighbors) {
+    text(x=x[i], y=y[i], labels=V(pre_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="gray", srt=angle[i], xpd=T)
+  }
+  # Label interesting taxa
   if(any(unlist(lapply(cool_taxa, function(s) {grepl(s, V(pre_graph)$name[i])})))) {
     text(x=x[i], y=y[i], labels=V(pre_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="black", srt=angle[i], xpd=T)
   }
