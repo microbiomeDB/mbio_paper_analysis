@@ -1,6 +1,6 @@
 ## Longitudinal pathway network for NICU-NEC
 
-
+install.packages("miscTools")
 # Setup
 setwd("~/Documents")
 library(MicrobiomeDB, quietly = TRUE)
@@ -33,7 +33,7 @@ recordIColName <- species_collection@recordIdColumn # Use me to match data
 # diagnosis_day <- sort(unique(sampleMetadata$days_of_period_nec_diagnosed_days))
 diagnosis_day <- c("pre", "almost", "post", "control") # For making ranges
 cool_taxa <- c("Clostridium", "Klebsiella")
-cool_taxa_colors <- c("green", "blue")
+cool_taxa_colors <- c("#E33695", "#2FB5C4")
 
 
 # Create a list of correlation graphs, one for each age in ages.
@@ -52,6 +52,7 @@ graph_list <- lapply(diagnosis_day, function(day) {
   }
   
   if (length(day_samples) < 5) {print(day); return(list())}
+  print(length(day_samples))
   day_species_abundances <- speciesAssayData[which(speciesAssayData$Sample_Id %in% day_samples), ]
   day_pathways_abundances <- pathwayAssayData[which(pathwayAssayData$Sample_Id %in% day_samples), ]
   print(day)
@@ -75,13 +76,13 @@ graph_list <- lapply(diagnosis_day, function(day) {
   V(shared_pathway_network)$label.color <- V(shared_pathway_network)$color
   
   # Let's assign the average abundance to each node so we can use it later
-  avg_abundances <- colMeans(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)])
-  # avg_abundances <- miscTools::colMedians(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)])
+  # avg_abundances <- colMeans(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)])
+  med_abundances <- miscTools::colMedians(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)])
   # avg_abundances <- apply(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)], 2, sd)
   #log transform produces too many infs 
   # avg_abundances <- log(miscTools::colMedians(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)]))
 
-  V(shared_pathway_network)$mean_abundance <- unlist(lapply(V(shared_pathway_network)$name, function(name) {avg_abundances[which(names(avg_abundances) %in% name)]}))
+  V(shared_pathway_network)$med_abundances <- unlist(lapply(V(shared_pathway_network)$name, function(name) {med_abundances[which(names(med_abundances) %in% name)]}))
   
   igraph::plot.igraph(
     shared_pathway_network,
@@ -135,161 +136,28 @@ radian.rescale <- function(x, start=0, direction=1) {
 }
 lab.locs <- radian.rescale(x=1:length(V(combined_graph)), direction=-1, start=0)
 
-
-min_abundance <- min(V(pre_graph)$mean_abundance, V(almost_graph)$mean_abundance, V(post_graph)$mean_abundance, V(control_graph)$mean_abundance)
-max_abundance <- max(V(pre_graph)$mean_abundance, V(almost_graph)$mean_abundance, V(post_graph)$mean_abundance, V(control_graph)$mean_abundance)
-min_vertex_size <- 1
+# Plot settings
+# Take the square root of the abundances to get the radius of the nodes
+min_abundance_radius <- sqrt(min(V(pre_graph)$med_abundances, V(almost_graph)$med_abundances, V(post_graph)$med_abundances, V(control_graph)$med_abundances)/pi)
+max_abundance_radius <- sqrt(max(V(pre_graph)$med_abundances, V(almost_graph)$med_abundances, V(post_graph)$med_abundances, V(control_graph)$med_abundances)/pi)
+min_abundance <- min(V(pre_graph)$med_abundances, V(almost_graph)$med_abundances, V(post_graph)$med_abundances, V(control_graph)$med_abundances)
+max_abundance <- max(V(pre_graph)$med_abundances, V(almost_graph)$med_abundances, V(post_graph)$med_abundances, V(control_graph)$med_abundances)
+min_vertex_size <- 2
 max_vertex_size <- 9
 
+# Simplify all the plots to remove self-loops
 # Plot pre-diagnosis
-# Find all the neighbors of nodes that are in the cool taxa
-klebsiella_vertices <- V(pre_graph)[grep("Klebsiella", V(pre_graph)$name)]
-clostridium_vertices <- V(pre_graph)[grep("Clostridium", V(pre_graph)$name)]
+plot_igraph_highlight_taxa(simplify(pre_graph), cool_taxa, cool_taxa_colors, coords, min_vertex_size, max_vertex_size, min_abundance_radius, max_abundance_radius, "Pre-diagnosis (-inf, 2)")
 
-# Find all neighbors of all klebsiella and clostridium nodes
-klebsiella_neighbors <- unique(unlist(lapply(klebsiella_vertices, function(v) {neighbors(pre_graph, v)})))
-clostridium_neighbors <- unique(unlist(lapply(clostridium_vertices, function(v) {neighbors(pre_graph, v)})))
-# Remove klebsiella nodes from the list
+# Plot almost-diagnosis
+plot_igraph_highlight_taxa(simplify(almost_graph), cool_taxa, cool_taxa_colors, coords, min_vertex_size, max_vertex_size, min_abundance_radius, max_abundance_radius, "Just before diagnosis [-2, 0)")
 
-V(pre_graph)$color <- unlist(lapply(V(pre_graph)$name, function(v) {
-  if(grepl(cool_taxa[1], v)) {
-    return(cool_taxa_colors[1])
-  } else if(grepl(cool_taxa[2], v)) {
-    return(cool_taxa_colors[2])
-  } else {
-    return("white")
-  }
-  }))
-V(pre_graph)$label.color <- V(pre_graph)$color
-V(pre_graph)$frame.color[clostridium_neighbors] <- cool_taxa_colors[1]
-V(pre_graph)$frame.color[klebsiella_neighbors] <- cool_taxa_colors[2]
-pre_coords <- as.matrix(coords[match(V(pre_graph)$name, coords$node_name), 1:2])
-igraph::plot.igraph(
-  pre_graph,
-  arrow.mode=0,
-  vertex.label="",
-  vertex.size=rescale(sqrt(V(pre_graph)$mean_abundance/pi), a=min_vertex_size, b=max_vertex_size, min_value = min_abundance, max_value=max_abundance), ## vertex.size maps to radius. Rescale for area
-  main="pre-diagnosis (-inf, 2)",
-  layout=pre_coords,
-  rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
-)
+# Plot post-diagnosis
+plot_igraph_highlight_taxa(simplify(post_graph), cool_taxa, cool_taxa_colors, coords, min_vertex_size, max_vertex_size, min_abundance_radius, max_abundance_radius, "Post-diagnosis [0, inf)")
 
-## Apply labels manually
-#Specify x and y coordinates of labels, adjust outward as desired
-x = pre_coords[,1]*1.3
-y = pre_coords[,2]*1.3
+# Plot control
+plot_igraph_highlight_taxa(simplify(control_graph), cool_taxa, cool_taxa_colors, coords, min_vertex_size, max_vertex_size, min_abundance_radius, max_abundance_radius, "Control")
 
-#create vector of angles for text based on number of nodes (flipping the orientation of the words half way around so none appear upside down)
-angle = ifelse(atan(-(pre_coords[,1]/pre_coords[,2]))*(180/pi) < 0,  90 + atan(-(pre_coords[,1]/pre_coords[,2]))*(180/pi), 270 + atan(-pre_coords[,1]/pre_coords[,2])*(180/pi))
-
-#Apply the text labels with a loop with angle as srt
-for (i in 1:length(x)) {
-  # Label neighbors as well
-  if (i %in% klebsiella_neighbors) {
-    text(x=x[i], y=y[i], labels=V(pre_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="gray", srt=angle[i], xpd=T)
-  }
-  if (i %in% clostridium_neighbors) {
-    text(x=x[i], y=y[i], labels=V(pre_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="gray", srt=angle[i], xpd=T)
-  }
-  # Label interesting taxa
-  if(any(unlist(lapply(cool_taxa, function(s) {grepl(s, V(pre_graph)$name[i])})))) {
-    text(x=x[i], y=y[i], labels=V(pre_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="black", srt=angle[i], xpd=T)
-  }
-}
-
-
-
-## Almost graph
-V(almost_graph)$color <- unlist(lapply(V(almost_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
-V(almost_graph)$label.color <- V(almost_graph)$color
-almost_coords <- as.matrix(coords[match(V(almost_graph)$name, coords$node_name), 1:2])
-igraph::plot.igraph(
-  almost_graph,
-  arrow.mode=0,
-  vertex.label="",
-  vertex.size=rescale(sqrt(V(almost_graph)$mean_abundance/pi), a=min_vertex_size, b=max_vertex_size, min_value = min_abundance, max_value=max_abundance), ## vertex.size maps to radius. Rescale for area
-  main="almost-diagnosis [-2, 0)",
-  layout=almost_coords,
-  rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
-)
-## Apply labels manually
-#Specify x and y coordinates of labels, adjust outward as desired
-subgraph_coords <- almost_coords
-x = subgraph_coords[,1]*1.3
-y = subgraph_coords[,2]*1.3
-
-#create vector of angles for text based on number of nodes (flipping the orientation of the words half way around so none appear upside down)
-angle = ifelse(atan(-(subgraph_coords[,1]/subgraph_coords[,2]))*(180/pi) < 0,  90 + atan(-(subgraph_coords[,1]/subgraph_coords[,2]))*(180/pi), 270 + atan(-subgraph_coords[,1]/subgraph_coords[,2])*(180/pi))
-
-#Apply the text labels with a loop with angle as srt
-for (i in 1:length(x)) {
-  if(any(unlist(lapply(cool_taxa, function(s) {grepl(s, V(almost_graph)$name[i])})))) {
-    text(x=x[i], y=y[i], labels=V(almost_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="black", srt=angle[i], xpd=T)
-  }
-}
-
-
-
-## Post graph
-V(post_graph)$color <- unlist(lapply(V(post_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
-V(post_graph)$label.color <- V(post_graph)$color
-post_coords <- as.matrix(coords[match(V(post_graph)$name, coords$node_name), 1:2])
-igraph::plot.igraph(
-  post_graph,
-  arrow.mode=0,
-  vertex.label="",
-  vertex.size=rescale(sqrt(V(post_graph)$mean_abundance/pi), a=min_vertex_size, b=max_vertex_size, min_value = min_abundance, max_value=max_abundance), ## vertex.size maps to radius. Rescale for area
-  main="post-diagnosis [0, inf)",
-  layout=post_coords,
-  rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
-)
-
-## Apply labels manually
-#Specify x and y coordinates of labels, adjust outward as desired
-subgraph_coords <- post_coords
-x = subgraph_coords[,1]*1.3
-y = subgraph_coords[,2]*1.3
-
-#create vector of angles for text based on number of nodes (flipping the orientation of the words half way around so none appear upside down)
-angle = ifelse(atan(-(subgraph_coords[,1]/subgraph_coords[,2]))*(180/pi) < 0,  90 + atan(-(subgraph_coords[,1]/subgraph_coords[,2]))*(180/pi), 270 + atan(-subgraph_coords[,1]/subgraph_coords[,2])*(180/pi))
-
-#Apply the text labels with a loop with angle as srt
-for (i in 1:length(x)) {
-  if(any(unlist(lapply(cool_taxa, function(s) {grepl(s, V(post_graph)$name[i])})))) {
-    text(x=x[i], y=y[i], labels=V(post_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="black", srt=angle[i], xpd=T)
-  }
-}
-
-
-## Control graph
-V(control_graph)$color <- unlist(lapply(V(control_graph)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
-V(control_graph)$label.color <- V(control_graph)$color
-control_coords <- as.matrix(coords[match(V(control_graph)$name, coords$node_name), 1:2])
-igraph::plot.igraph(
-  control_graph,
-  arrow.mode=0,
-  vertex.label="",
-  vertex.size=rescale(sqrt(V(control_graph)$mean_abundance/pi), a=min_vertex_size, b=max_vertex_size, min_value = min_abundance, max_value=max_abundance), ## vertex.size maps to radius. Rescale for area
-  main="control",
-  layout=control_coords,
-  rescale=F,xlim=c(-0.8,0.8),ylim=c(-0.8,0.8)
-)
-
-## Apply labels manually
-#Specify x and y coordinates of labels, adjust outward as desired
-subgraph_coords <- control_coords
-x = subgraph_coords[,1]*1.3
-y = subgraph_coords[,2]*1.3
-
-#create vector of angles for text based on number of nodes (flipping the orientation of the words half way around so none appear upside down)
-angle = ifelse(atan(-(subgraph_coords[,1]/subgraph_coords[,2]))*(180/pi) < 0,  90 + atan(-(subgraph_coords[,1]/subgraph_coords[,2]))*(180/pi), 270 + atan(-subgraph_coords[,1]/subgraph_coords[,2])*(180/pi))
-
-#Apply the text labels with a loop with angle as srt
-for (i in 1:length(x)) {
-  if(any(unlist(lapply(cool_taxa, function(s) {grepl(s, V(control_graph)$name[i])})))) {
-    text(x=x[i], y=y[i], labels=V(control_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="black", srt=angle[i], xpd=T)
-  }
-}
 
 
 
@@ -324,6 +192,29 @@ igraph::plot.igraph(
 
 
 
+
+
+## Let's look at the klebsiella pnemoniae neighborhood, but only in the almost_graph
+# Find all neighbors of klebsiella pnemoniae
+kleb_pnemoniae_ego_graph <- igraph::make_ego_graph(almost_graph, 1, which(V(almost_graph)$name == "Klebsiella pneumoniae"))
+
+# Convert to data frame
+kleb_pnemoniae_ego_df <- igraph::as_long_data_frame(kleb_pnemoniae_ego_graph[[1]])
+
+# Split sharedPathway into a vector
+kleb_pnemoniae_ego_df$sharedPathway <- strsplit(kleb_pnemoniae_ego_df$sharedPathway, ",, ")
+
+# Plot
+igraph::plot.igraph(
+  kleb_pnemoniae_ego_graph[[1]],
+  arrow.mode=0,
+  vertex.label=V(kleb_pnemoniae_ego_graph[[1]])$name,
+  vertex.size=2,
+  main="Klebsiella pnemoniae neighborhood",
+  layout=layout_in_circle(kleb_pnemoniae_ego_graph[[1]], order(V(kleb_pnemoniae_ego_graph[[1]])$name))
+)
+
+kp_neighbors <- incident(kleb_pnemoniae_ego_graph[[1]], which(V(kleb_pnemoniae_ego_graph[[1]])$name == "Klebsiella pneumoniae"))
 
 
 
