@@ -1,12 +1,14 @@
 ## Longitudinal pathway network for NICU-NEC
 
 install.packages("miscTools")
+install.packages("plotly")
 # Setup
 setwd("~/Documents")
 library(MicrobiomeDB, quietly = TRUE)
 library(igraph, quietly = TRUE)
 library(ggplot2)
 library(stringr)
+library(plotly)
 source("nicu_nec_analysis/utils.R")
 
 # Get the daily baby genus data
@@ -52,10 +54,13 @@ graph_list <- lapply(diagnosis_day, function(day) {
   }
   
   if (length(day_samples) < 5) {print(day); return(list())}
-  print(length(day_samples))
+  print(paste("Number of samples:", length(day_samples)))
   day_species_abundances <- speciesAssayData[which(speciesAssayData$Sample_Id %in% day_samples), ]
   day_pathways_abundances <- pathwayAssayData[which(pathwayAssayData$Sample_Id %in% day_samples), ]
   print(day)
+  
+  # Also collect ages of these samples
+  day_ages <- sampleMetadata$age_days[which(sampleMetadata$Sample_Id %in% day_samples)]
   
   # Make a new collection so we can send it through the correlation pipeline
   day_species_collection <- microbiomeComputations::AbundanceData(
@@ -94,6 +99,32 @@ graph_list <- lapply(diagnosis_day, function(day) {
     edge.width=E(shared_pathway_network)$weight/10,
     layout=layout_in_circle(shared_pathway_network, order(V(shared_pathway_network)$name))
   )
+
+  # Plot a violin of the abundances
+  df <- data.frame(ages = day_ages)
+  fig <- df %>%
+    plot_ly(
+      x = ~ages,
+      type = 'box',
+      y0 = day,
+      boxpoints = 'all',
+      jitter=0.2,
+      pointpos =0
+    )
+  
+  fig <- fig %>%
+    layout(
+      yaxis = list(
+        title = "",
+        zeroline = F
+      ),
+      xaxis = list(
+        title="Age (days)"
+      )
+    )
+  
+  print(fig)
+  
   return(shared_pathway_network)
 })
 
