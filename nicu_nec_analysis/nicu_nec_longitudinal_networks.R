@@ -37,9 +37,11 @@ diagnosis_day <- c("pre", "almost", "post", "control") # For making ranges
 cool_taxa <- c("Clostridium", "Klebsiella")
 cool_taxa_colors <- c("#E33695", "#2FB5C4")
 
-
+# Prep the df for ages
+age_df <- data.frame(term=character(), age=numeric())
 # Create a list of correlation graphs, one for each age in ages.
-graph_list <- lapply(diagnosis_day, function(day) {
+graph_list <- list()
+for (day in diagnosis_day) {
   
   # Subset to the appropriate abundances for this age
   if (day=="pre") {
@@ -61,6 +63,8 @@ graph_list <- lapply(diagnosis_day, function(day) {
   
   # Also collect ages of these samples
   day_ages <- sampleMetadata$age_days[which(sampleMetadata$Sample_Id %in% day_samples)]
+  # Add them to age_df
+  age_df <- rbind(age_df, data.frame(term=day, age=day_ages))
   
   # Make a new collection so we can send it through the correlation pipeline
   day_species_collection <- microbiomeComputations::AbundanceData(
@@ -100,33 +104,9 @@ graph_list <- lapply(diagnosis_day, function(day) {
     layout=layout_in_circle(shared_pathway_network, order(V(shared_pathway_network)$name))
   )
 
-  # Plot a violin of the abundances
-  df <- data.frame(ages = day_ages)
-  fig <- df %>%
-    plot_ly(
-      x = ~ages,
-      type = 'box',
-      y0 = day,
-      boxpoints = 'all',
-      jitter=0.2,
-      pointpos =0
-    )
-  
-  fig <- fig %>%
-    layout(
-      yaxis = list(
-        title = "",
-        zeroline = F
-      ),
-      xaxis = list(
-        title="Age (days)"
-      )
-    )
-  
-  print(fig)
-  
-  return(shared_pathway_network)
-})
+  graph_list[[length(graph_list) + 1]] <- shared_pathway_network
+
+}
 
 
 
@@ -249,3 +229,5 @@ kp_neighbors <- incident(kleb_pnemoniae_ego_graph[[1]], which(V(kleb_pnemoniae_e
 
 
 
+## Box plot of the ages for each day
+ggplot(age_df, aes(x=term, y=age)) + geom_boxplot() + labs(title="Ages of samples for each day", x="Day", y="Age (days)")
