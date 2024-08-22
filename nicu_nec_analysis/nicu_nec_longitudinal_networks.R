@@ -9,6 +9,7 @@ library(igraph, quietly = TRUE)
 library(ggplot2)
 library(stringr)
 library(plotly)
+library(ggstatsplot)
 source("nicu_nec_analysis/utils.R")
 
 # Get the daily baby genus data
@@ -85,11 +86,7 @@ for (day in diagnosis_day) {
   V(shared_pathway_network)$label.color <- V(shared_pathway_network)$color
   
   # Let's assign the average abundance to each node so we can use it later
-  # avg_abundances <- colMeans(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)])
   med_abundances <- miscTools::colMedians(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)])
-  # avg_abundances <- apply(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)], 2, sd)
-  #log transform produces too many infs 
-  # avg_abundances <- log(miscTools::colMedians(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)]))
 
   V(shared_pathway_network)$med_abundances <- unlist(lapply(V(shared_pathway_network)$name, function(name) {med_abundances[which(names(med_abundances) %in% name)]}))
   
@@ -230,4 +227,10 @@ kp_neighbors <- incident(kleb_pnemoniae_ego_graph[[1]], which(V(kleb_pnemoniae_e
 
 
 ## Box plot of the ages for each day
-ggplot(age_df, aes(x=term, y=age)) + geom_boxplot() + labs(title="Ages of samples for each day", x="Day", y="Age (days)")
+age_df$term <- factor(age_df$term, levels=c("pre", "almost", "post", "control"))
+  
+ggbetweenstats(age_df, x=term, y=age)
+
+
+## Create an upset plot of shared pathways
+
