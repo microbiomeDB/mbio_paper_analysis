@@ -2,6 +2,10 @@
 
 install.packages("miscTools")
 install.packages("plotly")
+install.packages("rlist")
+install.packages("ComplexUpset", type = "source")
+install.packages("ggstatsplot")
+
 # Setup
 setwd("~/Documents")
 library(MicrobiomeDB, quietly = TRUE)
@@ -10,6 +14,7 @@ library(ggplot2)
 library(stringr)
 library(plotly)
 library(ggstatsplot)
+library(ComplexUpset)
 source("nicu_nec_analysis/utils.R")
 
 # Get the daily baby genus data
@@ -42,6 +47,7 @@ cool_taxa_colors <- c("#E33695", "#2FB5C4")
 age_df <- data.frame(term=character(), age=numeric())
 # Create a list of correlation graphs, one for each age in ages.
 graph_list <- list()
+incidence_matrix_list <- list()
 for (day in diagnosis_day) {
   
   # Subset to the appropriate abundances for this age
@@ -80,8 +86,8 @@ for (day in diagnosis_day) {
     recordIdColumn = recordIColName,
     ancestorIdColumns = ancestorIdColNames)
   
-  shared_pathway_network <- createSharedPathwayNetwork(day_species_collection, day_pathways_collection, method="spearman", corrCoeffThreshold = 0.5, pValueThreshold = 0.05)
-  
+  pathway_network_list <- createSharedPathwayNetwork(day_species_collection, day_pathways_collection, method="spearman", corrCoeffThreshold = 0.5, pValueThreshold = 0.05)
+  shared_pathway_network <- pathway_network_list["network"][[1]]
   V(shared_pathway_network)$color <- unlist(lapply(V(shared_pathway_network)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
   V(shared_pathway_network)$label.color <- V(shared_pathway_network)$color
   
@@ -102,6 +108,7 @@ for (day in diagnosis_day) {
   )
 
   graph_list[[length(graph_list) + 1]] <- shared_pathway_network
+  incidence_matrix_list[[length(incidence_matrix_list) + 1]] <- pathway_network_list["incidence_matrix"][[1]]
 
 }
 
@@ -232,5 +239,38 @@ age_df$term <- factor(age_df$term, levels=c("pre", "almost", "post", "control"))
 ggbetweenstats(age_df, x=term, y=age)
 
 
-## Create an upset plot of shared pathways
+## Create an upset plot of shared pathways for the "almost" day
+almost_shared_pathways_incidence <- t(incidence_matrix_list[[2]])
+# Convert binary incidence to boolean
+almost_shared_pathways_incidence <- almost_shared_pathways_incidence == 1
+kleb_species <- c("Klebsiella pneumoniae", "Klebsiella variicola", "Klebsiella quasipneumoniae")
+almost_shared_pathways_incidence <- almost_shared_pathways_incidence[, kleb_species]
+names(almost_shared_pathways_incidence) <- colnames(almost_shared_pathways_incidence)
+incidence_df <- as.data.frame(almost_shared_pathways_incidence)
+# remove rows that are all 0
+almost_shared_pathways_incidence <- almost_shared_pathways_incidence[rowSums(almost_shared_pathways_incidence) > 0, ]
+upset(
+  incidence_df,
+  kleb_species,
+  keep_empty_groups=TRUE
+)
 
+
+# Why no work?
+movies = as.data.frame(ggplot2movies::movies)
+head(movies, 3)
+genres = colnames(movies)[18:24]
+genres
+movies[genres] = movies[genres] == 1
+t(head(movies[genres], 3))
+
+ComplexUpset::upset(movies, genres, name='genre', width_ratio=0.1)
+
+
+# Sanity check
+node <- which(V(almost_graph)$name == kleb_species[3])
+ids <- incident(almost_graph,node)
+print(E(almost_graph)[ids])
+quasi_ps <- unique(unlist(strsplit(E(almost_graph)$sharedPathway[ids], ",, ")))
+vari_ps <- unique(unlist(strsplit(E(almost_graph)$sharedPathway[ids], ",, ")))
+pne_ps <- unique(unlist(strsplit(E(almost_graph)$sharedPathway[ids], ",, ")))

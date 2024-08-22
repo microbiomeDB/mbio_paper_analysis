@@ -76,7 +76,36 @@ createSharedPathwayNetwork <- function(taxaCollection, pathwayCollection, method
   
   E(network)$sharedPathway <- network_df$sharedPathway
 
-  return(network)
+
+  # Also create the incidence matrix so we can easily find which pathways are connecting nodes?
+  corr_incidence <- reshape(corr_stats_filtered[, c("data1", "data2", "correlationCoef")], direction="wide", idvar="data1", timevar="data2")
+  # binarize corr_incidence
+  binarized_incidence <- corr_incidence[,-1]
+  binarized_incidence[is.na(binarized_incidence)] <- 0
+  binarized_incidence[binarized_incidence > 0] <- 1
+  binarized_matrix <- data.matrix(binarized_incidence, rownames.force = NA)
+  rownames(binarized_matrix) <- corr_incidence$data1
+  colnames(binarized_matrix) <- str_replace(colnames(binarized_matrix), "correlationCoef.", "")
+  # Reorder rows based on components
+  component_membership <- components(network)$membership
+  components_node_list <- lapply(seq(1:max(component_membership)), function(i) {
+    return(V(network)$name[which(component_membership==i)])
+  })
+  taxa_order <- unlist(components_node_list)
+  taxa_order <- rlist::list.reverse(taxa_order)
+  binarized_matrix <- binarized_matrix[taxa_order,,drop=FALSE]
+  # Reorder columns based on components
+  # connected_components_graphs <- lapply(seq(1:max(component_membership)), function(i) {
+  #   g <- induced_subgraph(network, components_node_list[[i]], "create_from_scratch")
+  # })
+  # pathway_order <- unlist(lapply(connected_components_graphs, function(g) {
+  #   g_df <- igraph::as_data_frame(g)
+  #   return(unique(g_df$sharedPathway))
+  # }))
+  # pathway_order <- rlist::list.reverse(pathway_order)
+  # binarized_matrix <- binarized_matrix[,pathway_order]
+
+  return(list(network=network, incidence_matrix=binarized_matrix))
 }
 
 ## Rescale values to be between min_value and max_value

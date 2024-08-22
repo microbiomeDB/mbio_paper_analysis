@@ -15,6 +15,7 @@ RUN R -e "install.packages('Rserve', version='1.8-9', repos='http://rforge.net')
 
 ### CRAN
 RUN R -e "install.packages('bit64')"
+RUN R -e "install.packages('ggplot2', version='3.4.9')"
 RUN R -e "install.packages('data.table')"
 RUN R -e "install.packages('jsonlite')"
 RUN R -e "install.packages('remotes')"
