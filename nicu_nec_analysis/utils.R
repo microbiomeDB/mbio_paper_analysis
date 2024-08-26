@@ -116,7 +116,7 @@ rescale_min_max <- function(x, a=1, b=20, min_value=0, max_value=1) {
 
 ## Plot an igraph and label specific nodes and their neighbors
 # This could use some significant reworking to make it more clear... but it's functional for now!
-plot_igraph_highlight_taxa <- function(the_graph, cool_taxa, cool_taxa_colors, coords, min_vertex_size=1, max_vertex_size=9, min_abundance=0, max_abundance=1, plot_name="") {
+plot_igraph_highlight_taxa <- function(the_graph, cool_taxa, cool_taxa_colors, intersection_color, coords, min_vertex_size=1, max_vertex_size=9, min_abundance=0, max_abundance=1, plot_name="", edge_color="gray") {
   
   # Find all the neighbors of nodes that are in the cool taxa
   klebsiella_vertices <- V(the_graph)[grep("Klebsiella", V(the_graph)$name)]
@@ -142,7 +142,11 @@ plot_igraph_highlight_taxa <- function(the_graph, cool_taxa, cool_taxa_colors, c
   V(the_graph)$frame.color <- "gray"
   V(the_graph)$frame.color[clostridium_neighbors] <- cool_taxa_colors[1]
   V(the_graph)$frame.color[klebsiella_neighbors] <- cool_taxa_colors[2]
+  V(the_graph)$frame.color[intersect(clostridium_neighbors, klebsiella_neighbors)] <- intersection_color
   pre_coords <- as.matrix(coords[match(V(the_graph)$name, coords$node_name), 1:2])
+
+  # Color edges
+  E(the_graph)$color <- edge_color
   igraph::plot.igraph(
     the_graph,
     arrow.mode=0,
@@ -152,7 +156,8 @@ plot_igraph_highlight_taxa <- function(the_graph, cool_taxa, cool_taxa_colors, c
     layout=pre_coords,
     rescale=F,
     xlim=c(-0.8,0.8),
-    ylim=c(-0.8,0.8)
+    ylim=c(-0.8,0.8),
+    edge.width=0.4
   )
 
   ## Apply labels manually

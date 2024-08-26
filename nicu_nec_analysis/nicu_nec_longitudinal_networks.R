@@ -41,7 +41,9 @@ recordIColName <- species_collection@recordIdColumn # Use me to match data
 # diagnosis_day <- sort(unique(sampleMetadata$days_of_period_nec_diagnosed_days))
 diagnosis_day <- c("pre", "almost", "post", "control") # For making ranges
 cool_taxa <- c("Clostridium", "Klebsiella")
-cool_taxa_colors <- c("#E33695", "#2FB5C4")
+cool_taxa_colors <- c("#B39FD6", "#008300")
+intersection_color <- "#5D8CE9"
+edge_color <- "#A6AFB5"
 
 # Prep the df for ages
 age_df <- data.frame(term=character(), age=numeric())
@@ -157,21 +159,21 @@ min_abundance_radius <- sqrt(min(V(pre_graph)$med_abundances, V(almost_graph)$me
 max_abundance_radius <- sqrt(max(V(pre_graph)$med_abundances, V(almost_graph)$med_abundances, V(post_graph)$med_abundances, V(control_graph)$med_abundances)/pi)
 min_abundance <- min(V(pre_graph)$med_abundances, V(almost_graph)$med_abundances, V(post_graph)$med_abundances, V(control_graph)$med_abundances)
 max_abundance <- max(V(pre_graph)$med_abundances, V(almost_graph)$med_abundances, V(post_graph)$med_abundances, V(control_graph)$med_abundances)
-min_vertex_size <- 2
+min_vertex_size <- 3
 max_vertex_size <- 9
 
 # Simplify all the plots to remove self-loops
 # Plot pre-diagnosis
-plot_igraph_highlight_taxa(simplify(pre_graph), cool_taxa, cool_taxa_colors, coords, min_vertex_size, max_vertex_size, min_abundance_radius, max_abundance_radius, "Pre-diagnosis (-inf, 2)")
+plot_igraph_highlight_taxa(simplify(pre_graph), cool_taxa, cool_taxa_colors, intersection_color, coords, min_vertex_size, max_vertex_size, min_abundance_radius, max_abundance_radius, "Pre-diagnosis (-inf, 2)", edge_color)
 
 # Plot almost-diagnosis
-plot_igraph_highlight_taxa(simplify(almost_graph), cool_taxa, cool_taxa_colors, coords, min_vertex_size, max_vertex_size, min_abundance_radius, max_abundance_radius, "Just before diagnosis [-2, 0)")
+plot_igraph_highlight_taxa(simplify(almost_graph), cool_taxa, cool_taxa_colors, intersection_color, coords, min_vertex_size, max_vertex_size, min_abundance_radius, max_abundance_radius, "Just before diagnosis [-2, 0)", edge_color)
 
 # Plot post-diagnosis
-plot_igraph_highlight_taxa(simplify(post_graph), cool_taxa, cool_taxa_colors, coords, min_vertex_size, max_vertex_size, min_abundance_radius, max_abundance_radius, "Post-diagnosis [0, inf)")
+plot_igraph_highlight_taxa(simplify(post_graph), cool_taxa, cool_taxa_colors, intersection_color, coords, min_vertex_size, max_vertex_size, min_abundance_radius, max_abundance_radius, "Post-diagnosis [0, inf)", edge_color)
 
 # Plot control
-plot_igraph_highlight_taxa(simplify(control_graph), cool_taxa, cool_taxa_colors, coords, min_vertex_size, max_vertex_size, min_abundance_radius, max_abundance_radius, "Control")
+plot_igraph_highlight_taxa(simplify(control_graph), cool_taxa, cool_taxa_colors, intersection_color, coords, min_vertex_size, max_vertex_size, min_abundance_radius, max_abundance_radius, "Control", edge_color)
 
 
 
@@ -252,8 +254,10 @@ almost_shared_pathways_incidence <- almost_shared_pathways_incidence[rowSums(alm
 upset(
   incidence_df,
   kleb_species,
-  keep_empty_groups=TRUE
-)
+  keep_empty_groups=TRUE,
+  stripes='white'
+) +
+  ggtitle('Overlap of correlated pathways')
 
 
 # Why no work?
@@ -274,3 +278,47 @@ print(E(almost_graph)[ids])
 quasi_ps <- unique(unlist(strsplit(E(almost_graph)$sharedPathway[ids], ",, ")))
 vari_ps <- unique(unlist(strsplit(E(almost_graph)$sharedPathway[ids], ",, ")))
 pne_ps <- unique(unlist(strsplit(E(almost_graph)$sharedPathway[ids], ",, ")))
+
+
+## Checking other shared pathways of interest
+# First, find pathways shared in clostridia in the 'almost' graph
+clost_nodes <- V(almost_graph)[grep("Clostridium", V(almost_graph)$name)]$name
+# Find pathways for all pairs of clost_nodes
+clost_edges <- lapply(seq_len(nrow(almost_df)), function(r, df) {
+  df_row <- df[r, ]
+  if (df_row$from_name %in% clost_nodes & df_row$to_name %in% clost_nodes) {
+    print(paste(df_row$from_name,'--', df_row$to_name, ':', df_row$sharedPathway))
+    return(unlist(strsplit(df_row$sharedPathway, ",, ")))
+  } else {
+    return(NULL)
+  }
+}, almost_df)
+
+# Found no shared pathways between clostridia nodes
+
+# Next find pathways shared between klebsiella and bifidobacteria, and clostridia and bifidobacteria
+kleb_nodes <- V(almost_graph)[grep("Klebsiella", V(almost_graph)$name)]$name
+bifido_nodes <- V(almost_graph)[grep("Bifidobacterium", V(almost_graph)$name)]$name
+
+# Klebsiella v bifido edges.
+kleb_bifido_edges <- lapply(seq_len(nrow(almost_df)), function(r, df) {
+  df_row <- df[r, ]
+  if ((df_row$from_name %in% kleb_nodes & df_row$to_name %in% bifido_nodes) | (df_row$from_name %in% bifido_nodes & df_row$to_name %in% kleb_nodes)) {
+    print(paste(df_row$from_name,'--', df_row$to_name, ':', df_row$sharedPathway))
+    return(unlist(strsplit(df_row$sharedPathway, ",, ")))
+  } else {
+    return(NULL)
+  }
+}, almost_df)
+
+# Clostridia v bifido edges
+clost_bifido_edges <- lapply(seq_len(nrow(almost_df)), function(r, df) {
+  df_row <- df[r, ]
+  if ((df_row$from_name %in% clost_nodes & df_row$to_name %in% bifido_nodes) | (df_row$from_name %in% bifido_nodes & df_row$to_name %in% clost_nodes)) {
+    print(paste(df_row$from_name,'--', df_row$to_name, ':', df_row$sharedPathway))
+    return(unlist(strsplit(df_row$sharedPathway, ",, ")))
+  } else {
+    return(NULL)
+  }
+}, almost_df)
+
