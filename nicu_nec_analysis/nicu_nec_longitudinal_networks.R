@@ -17,115 +17,27 @@ library(ggstatsplot)
 library(ComplexUpset)
 source("nicu_nec_analysis/utils.R")
 
-# Get the daily baby genus data
-species_collection <- getCollection(
-  microbiomeData::NICU_NEC,
-  "Shotgun metagenomics Species (Relative taxonomic abundance analysis)",
-  continuousMetadataOnly = FALSE
-)
-pathway_collection <- getCollection(
-  microbiomeData::NICU_NEC,
-  "Shotgun metagenomics Metagenome enzyme pathway abundance data",
-  continuousMetadataOnly = FALSE
-)
-
-# Subset by diagnosis day
-
-# We need to filter by ourselves, which means deconstructing the collection
-sampleMetadata <- getSampleMetadata(species_collection)
-speciesAssayData <- microbiomeComputations::getAbundances(species_collection)
-pathwayAssayData <- microbiomeComputations::getAbundances(pathway_collection)
-ancestorIdColNames <- species_collection@ancestorIdColumns # Remove me from calculations
-recordIColName <- species_collection@recordIdColumn # Use me to match data
-
-# diagnosis_day <- sort(unique(sampleMetadata$days_of_period_nec_diagnosed_days))
-diagnosis_day <- c("pre", "almost", "post", "control") # For making ranges
 cool_taxa <- c("Clostridium", "Klebsiella")
 cool_taxa_colors <- c("#B39FD6", "#008300")
 intersection_color <- "#5D8CE9"
 edge_color <- "#A6AFB5"
 
-# Prep the df for ages
-age_df <- data.frame(term=character(), age=numeric())
-# Create a list of correlation graphs, one for each age in ages.
-graph_list <- list()
-incidence_matrix_list <- list()
-for (day in diagnosis_day) {
-  
-  # Subset to the appropriate abundances for this age
-  if (day=="pre") {
-    day_samples <- sampleMetadata$Sample_Id[!is.na(sampleMetadata$days_of_period_nec_diagnosed_days) & sampleMetadata$days_of_period_nec_diagnosed_days < -2]
-  }
-  else if (day=="almost") {
-    day_samples <- sampleMetadata$Sample_Id[!is.na(sampleMetadata$days_of_period_nec_diagnosed_days) & sampleMetadata$days_of_period_nec_diagnosed_days >= -2 & sampleMetadata$days_of_period_nec_diagnosed_days <0]
-  } else if (day=="post") {
-    day_samples <- sampleMetadata$Sample_Id[!is.na(sampleMetadata$days_of_period_nec_diagnosed_days) & sampleMetadata$days_of_period_nec_diagnosed_days >= 0]
-  } else {
-    day_samples <- sampleMetadata$Sample_Id[is.na(sampleMetadata$days_of_period_nec_diagnosed_days)]
-  }
-  
-  if (length(day_samples) < 5) {print(day); return(list())}
-  print(paste("Number of samples:", length(day_samples)))
-  day_species_abundances <- speciesAssayData[which(speciesAssayData$Sample_Id %in% day_samples), ]
-  day_pathways_abundances <- pathwayAssayData[which(pathwayAssayData$Sample_Id %in% day_samples), ]
-  print(day)
-  
-  # Also collect ages of these samples
-  day_ages <- sampleMetadata$age_days[which(sampleMetadata$Sample_Id %in% day_samples)]
-  # Add them to age_df
-  age_df <- rbind(age_df, data.frame(term=day, age=day_ages))
-  
-  # Make a new collection so we can send it through the correlation pipeline
-  day_species_collection <- microbiomeComputations::AbundanceData(
-    data=day_species_abundances,
-    name=paste0("day_", day),
-    recordIdColumn = recordIColName,
-    ancestorIdColumns = ancestorIdColNames)
-  
-  day_pathways_collection <- microbiomeComputations::AbundanceData(
-    data=day_pathways_abundances,
-    name=paste0("day_", day),
-    recordIdColumn = recordIColName,
-    ancestorIdColumns = ancestorIdColNames)
-  
-  pathway_network_list <- createSharedPathwayNetwork(day_species_collection, day_pathways_collection, method="spearman", corrCoeffThreshold = 0.5, pValueThreshold = 0.05)
-  shared_pathway_network <- pathway_network_list["network"][[1]]
-  V(shared_pathway_network)$color <- unlist(lapply(V(shared_pathway_network)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
-  V(shared_pathway_network)$label.color <- V(shared_pathway_network)$color
-  
-  # Let's assign the average abundance to each node so we can use it later
-  med_abundances <- miscTools::colMedians(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)])
 
-  V(shared_pathway_network)$med_abundances <- unlist(lapply(V(shared_pathway_network)$name, function(name) {med_abundances[which(names(med_abundances) %in% name)]}))
-  
-  igraph::plot.igraph(
-    shared_pathway_network,
-    arrow.mode=0,
-    vertex.label.dist=3,
-    vertex.label.degree=0,
-    vertex.size=2,
-    main=paste("Pathway network,", day),
-    edge.width=E(shared_pathway_network)$weight/10,
-    layout=layout_in_circle(shared_pathway_network, order(V(shared_pathway_network)$name))
-  )
-
-  graph_list[[length(graph_list) + 1]] <- shared_pathway_network
-  incidence_matrix_list[[length(incidence_matrix_list) + 1]] <- pathway_network_list["incidence_matrix"][[1]]
-
-}
-
-
-
+results <- createNICUNECSubsettedPathwayNetworks()
 
 
 ## Let's plot them all on the same layout for better comparison
 # There's a good intersection here. Make into single weighted network to create
 # a combined layout. Then use this layout to plot and highlight nodes in 
 # both networks
-pre_df <- igraph::as_long_data_frame(graph_list[[1]])
-almost_df <- igraph::as_long_data_frame(graph_list[[2]])
-post_df <- igraph::as_long_data_frame(graph_list[[3]])
-control_df <- igraph::as_long_data_frame(graph_list[[4]])
+pre_graph <- results$graph_list[[1]]
+almost_graph <- results$graph_list[[2]]
+post_graph <- results$graph_list[[3]]
+control_graph <- results$graph_list[[4]]
+pre_df <- igraph::as_long_data_frame(pre_graph)
+almost_df <- igraph::as_long_data_frame(almost_graph)
+post_df <- igraph::as_long_data_frame(post_graph)
+control_df <- igraph::as_long_data_frame(control_graph)
 combined_df <- rbind(pre_df, almost_df, post_df, control_df)
 # Simplify combined_df to have one edge per pair of nodes and add a column for number of times seen
 combined_df$occurrences <- ave(combined_df$from_name, combined_df$from_name, combined_df$to_name, FUN = length)
@@ -134,23 +46,11 @@ combined_df <- combined_df[, c("from_name", "to_name", "occurrences")]
 
 combined_graph <- igraph::graph_from_data_frame(combined_df, directed=FALSE)
 E(combined_graph)$weight <- combined_df$occurrences
-pre_graph <- graph_list[[1]]
-almost_graph <- graph_list[[2]]
-post_graph <- graph_list[[3]]
-control_graph <- graph_list[[4]]
+
 coords <- as.data.frame(layout_in_circle(combined_graph, order(V(combined_graph)$name)))
 coords$node_name <- V(combined_graph)$name
 
-## (from stack overflow) Get the labels aligned consistently around the edge of the circle
-## for any n of nodes.
-## This code borrows bits of ggplot2's polar_coord function
-## start = offset from 12 o'clock in radians
-## direction = 1 for clockwise; -1 for anti-clockwise.
 
-radian.rescale <- function(x, start=0, direction=1) {
-  c.rotate <- function(x) (x + start) %% (2 * pi) * direction
-  c.rotate(scales::rescale(x, c(0, 2 * pi), range(x)))
-}
 lab.locs <- radian.rescale(x=1:length(V(combined_graph)), direction=-1, start=0)
 
 # Plot settings
@@ -210,7 +110,7 @@ igraph::plot.igraph(
 
 
 
-
+####### STARTING HERE SHOULD BE NEW SCRIPT
 ## Let's look at the klebsiella pnemoniae neighborhood, but only in the almost_graph
 # Find all neighbors of klebsiella pnemoniae
 kleb_pnemoniae_ego_graph <- igraph::make_ego_graph(almost_graph, 1, which(V(almost_graph)$name == "Klebsiella pneumoniae"))
@@ -260,15 +160,6 @@ upset(
   ggtitle('Overlap of correlated pathways')
 
 
-# Why no work?
-movies = as.data.frame(ggplot2movies::movies)
-head(movies, 3)
-genres = colnames(movies)[18:24]
-genres
-movies[genres] = movies[genres] == 1
-t(head(movies[genres], 3))
-
-ComplexUpset::upset(movies, genres, name='genre', width_ratio=0.1)
 
 
 # Sanity check

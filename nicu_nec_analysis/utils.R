@@ -183,3 +183,125 @@ plot_igraph_highlight_taxa <- function(the_graph, cool_taxa, cool_taxa_colors, i
     }
   }
 }
+
+
+
+## Creating the NICU-NEC networks
+# The subsetting is specific to NICU-NEC data. Still, much could be
+# reused for other datasets.
+
+createNICUNECSubsettedPathwayNetworks <- function() {
+  
+  # Grab data
+  species_collection <- getCollection(
+    microbiomeData::NICU_NEC,
+    "Shotgun metagenomics Species (Relative taxonomic abundance analysis)",
+    continuousMetadataOnly = FALSE
+  )
+  pathway_collection <- getCollection(
+    microbiomeData::NICU_NEC,
+    "Shotgun metagenomics Metagenome enzyme pathway abundance data",
+    continuousMetadataOnly = FALSE
+  )
+
+  # Subset by diagnosis day
+
+  # We need to filter by ourselves, which means deconstructing the collection
+  sampleMetadata <- getSampleMetadata(species_collection)
+  speciesAssayData <- microbiomeComputations::getAbundances(species_collection)
+  pathwayAssayData <- microbiomeComputations::getAbundances(pathway_collection)
+  ancestorIdColNames <- species_collection@ancestorIdColumns # Remove me from calculations
+  recordIColName <- species_collection@recordIdColumn # Use me to match data
+
+
+  diagnosis_day <- c("pre", "almost", "post", "control") # For making ranges
+
+  # Prep the df for ages
+  age_df <- data.frame(term=character(), age=numeric())
+  # Create a list of correlation graphs, one for each age in ages.
+  graph_list <- list()
+  incidence_matrix_list <- list()
+  for (day in diagnosis_day) {
+    
+    # Subset to the appropriate abundances for this age
+    if (day=="pre") {
+      day_samples <- sampleMetadata$Sample_Id[!is.na(sampleMetadata$days_of_period_nec_diagnosed_days) & sampleMetadata$days_of_period_nec_diagnosed_days < -2]
+    }
+    else if (day=="almost") {
+      day_samples <- sampleMetadata$Sample_Id[!is.na(sampleMetadata$days_of_period_nec_diagnosed_days) & sampleMetadata$days_of_period_nec_diagnosed_days >= -2 & sampleMetadata$days_of_period_nec_diagnosed_days <0]
+    } else if (day=="post") {
+      day_samples <- sampleMetadata$Sample_Id[!is.na(sampleMetadata$days_of_period_nec_diagnosed_days) & sampleMetadata$days_of_period_nec_diagnosed_days >= 0]
+    } else {
+      day_samples <- sampleMetadata$Sample_Id[is.na(sampleMetadata$days_of_period_nec_diagnosed_days)]
+    }
+    
+    # Skip if we don't have enough samples
+    if (length(day_samples) < 5) {print(paste("Not enough samples for", day)); return(list())}
+
+    print(paste("Number of samples for ", day, ":", length(day_samples)))
+    day_species_abundances <- speciesAssayData[which(speciesAssayData$Sample_Id %in% day_samples), ]
+    day_pathways_abundances <- pathwayAssayData[which(pathwayAssayData$Sample_Id %in% day_samples), ]
+    
+    # Also collect ages of these samples
+    day_ages <- sampleMetadata$age_days[which(sampleMetadata$Sample_Id %in% day_samples)]
+    # Add them to age_df
+    age_df <- rbind(age_df, data.frame(term=day, age=day_ages))
+    
+    # Make a new collection so we can send it through the correlation pipeline
+    day_species_collection <- microbiomeComputations::AbundanceData(
+      data=day_species_abundances,
+      name=paste0("day_", day),
+      recordIdColumn = recordIColName,
+      ancestorIdColumns = ancestorIdColNames)
+    
+    day_pathways_collection <- microbiomeComputations::AbundanceData(
+      data=day_pathways_abundances,
+      name=paste0("day_", day),
+      recordIdColumn = recordIColName,
+      ancestorIdColumns = ancestorIdColNames)
+    
+    pathway_network_list <- createSharedPathwayNetwork(day_species_collection, day_pathways_collection, method="spearman", corrCoeffThreshold = 0.5, pValueThreshold = 0.05)
+    shared_pathway_network <- pathway_network_list["network"][[1]]
+    V(shared_pathway_network)$color <- unlist(lapply(V(shared_pathway_network)$name, function(v) {ifelse(v %in% cool_taxa, "blue", "black")}))
+    V(shared_pathway_network)$label.color <- V(shared_pathway_network)$color
+    
+    # Let's assign the average abundance to each node so we can use it later
+    med_abundances <- miscTools::colMedians(day_species_abundances[, -c(..ancestorIdColNames, ..recordIColName)])
+
+    V(shared_pathway_network)$med_abundances <- unlist(lapply(V(shared_pathway_network)$name, function(name) {med_abundances[which(names(med_abundances) %in% name)]}))
+    
+    igraph::plot.igraph(
+      shared_pathway_network,
+      arrow.mode=0,
+      vertex.label.dist=3,
+      vertex.label.degree=0,
+      vertex.size=2,
+      main=paste("Pathway network,", day),
+      edge.width=E(shared_pathway_network)$weight/10,
+      layout=layout_in_circle(shared_pathway_network, order(V(shared_pathway_network)$name))
+    )
+
+    graph_list[[length(graph_list) + 1]] <- shared_pathway_network
+    incidence_matrix_list[[length(incidence_matrix_list) + 1]] <- pathway_network_list["incidence_matrix"][[1]]
+
+  }
+
+  return(
+    list(
+      graph_list=graph_list, 
+      incidence_matrix_list=incidence_matrix_list, 
+      age_df=age_df
+    )
+  )
+}
+
+## (from stack overflow) Get the labels aligned consistently around the edge of the circle
+## for any n of nodes.
+## This code borrows bits of ggplot2's polar_coord function
+## start = offset from 12 o'clock in radians
+## direction = 1 for clockwise; -1 for anti-clockwise.
+
+radian.rescale <- function(x, start=0, direction=1) {
+  c.rotate <- function(x) (x + start) %% (2 * pi) * direction
+  c.rotate(scales::rescale(x, c(0, 2 * pi), range(x)))
+}
