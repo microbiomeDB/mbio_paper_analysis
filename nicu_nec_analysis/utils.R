@@ -139,14 +139,20 @@ plot_igraph_highlight_taxa <- function(the_graph, cool_taxa, cool_taxa_colors, i
   V(the_graph)$label.color <- V(the_graph)$color
   
   # Set the stroke color of the vertices
-  V(the_graph)$frame.color <- "gray"
+  V(the_graph)$frame.color <- "#848484"
+  V(the_graph)$frame.width <- 0.2
   V(the_graph)$frame.color[clostridium_neighbors] <- cool_taxa_colors[1]
+  V(the_graph)$frame.width[clostridium_neighbors] <- 0.7
+  V(the_graph)$frame.color[clostridium_vertices] <- cool_taxa_colors[1]
   V(the_graph)$frame.color[klebsiella_neighbors] <- cool_taxa_colors[2]
+  V(the_graph)$frame.width[klebsiella_neighbors] <- 0.7
+  V(the_graph)$frame.color[klebsiella_vertices] <- cool_taxa_colors[2]
   V(the_graph)$frame.color[intersect(clostridium_neighbors, klebsiella_neighbors)] <- intersection_color
   pre_coords <- as.matrix(coords[match(V(the_graph)$name, coords$node_name), 1:2])
 
   # Color edges
   E(the_graph)$color <- edge_color
+
   igraph::plot.igraph(
     the_graph,
     arrow.mode=0,
@@ -157,7 +163,7 @@ plot_igraph_highlight_taxa <- function(the_graph, cool_taxa, cool_taxa_colors, i
     rescale=F,
     xlim=c(-0.8,0.8),
     ylim=c(-0.8,0.8),
-    edge.width=0.4
+    edge.width=0.2
   )
 
   ## Apply labels manually
@@ -170,11 +176,8 @@ plot_igraph_highlight_taxa <- function(the_graph, cool_taxa, cool_taxa_colors, i
 
   #Apply the text labels with a loop with angle as srt
   for (i in 1:length(x)) {
-    # Label neighbors as well
-    if (i %in% klebsiella_neighbors) {
-      text(x=x[i], y=y[i], labels=V(the_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="gray", srt=angle[i], xpd=T)
-    }
-    if (i %in% clostridium_neighbors) {
+    # Label neighbors of interesting nodes in gray
+    if (((i %in% klebsiella_neighbors) | (i %in% clostridium_neighbors)) & !any(unlist(lapply(cool_taxa, function(s) {grepl(s, V(the_graph)$name[i])})))) {
       text(x=x[i], y=y[i], labels=V(the_graph)$name[i], adj=NULL, pos=NULL, cex=.7, col="gray", srt=angle[i], xpd=T)
     }
     # Label interesting taxa

@@ -17,6 +17,9 @@ library(ggstatsplot)
 library(ComplexUpset)
 source("nicu_nec_analysis/utils.R")
 
+# Plot prep
+min_vertex_size <- 3
+max_vertex_size <- 9
 cool_taxa <- c("Clostridium", "Klebsiella")
 cool_taxa_colors <- c("#B39FD6", "#008300")
 intersection_color <- "#5D8CE9"
@@ -53,14 +56,13 @@ coords$node_name <- V(combined_graph)$name
 
 lab.locs <- radian.rescale(x=1:length(V(combined_graph)), direction=-1, start=0)
 
-# Plot settings
+
 # Take the square root of the abundances to get the radius of the nodes
 min_abundance_radius <- sqrt(min(V(pre_graph)$med_abundances, V(almost_graph)$med_abundances, V(post_graph)$med_abundances, V(control_graph)$med_abundances)/pi)
 max_abundance_radius <- sqrt(max(V(pre_graph)$med_abundances, V(almost_graph)$med_abundances, V(post_graph)$med_abundances, V(control_graph)$med_abundances)/pi)
 min_abundance <- min(V(pre_graph)$med_abundances, V(almost_graph)$med_abundances, V(post_graph)$med_abundances, V(control_graph)$med_abundances)
 max_abundance <- max(V(pre_graph)$med_abundances, V(almost_graph)$med_abundances, V(post_graph)$med_abundances, V(control_graph)$med_abundances)
-min_vertex_size <- 3
-max_vertex_size <- 9
+
 
 # Simplify all the plots to remove self-loops
 # Plot pre-diagnosis
